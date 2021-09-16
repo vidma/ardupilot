@@ -682,13 +682,13 @@ is bob we will attempt to checkout bob-AVR'''
 
         for tag in self.tags:
             t0 = time.time()
-            self.build_arducopter(tag)
+#             self.build_arducopter(tag)
             self.build_arduplane(tag)
-            self.build_rover(tag)
-            self.build_antennatracker(tag)
-            self.build_ardusub(tag)
-            self.build_AP_Periph(tag)
-            self.history.record_run(githash, tag, t0, time.time()-t0)
+#             self.build_rover(tag)
+#             self.build_antennatracker(tag)
+#             self.build_ardusub(tag)
+#             self.build_AP_Periph(tag)
+#             self.history.record_run(githash, tag, t0, time.time()-t0)
 
         if os.path.exists(self.tmpdir):
             shutil.rmtree(self.tmpdir)
