@@ -54,12 +54,13 @@ jobs:
         env:
           CI_BUILD_TARGET: ${{matrix.config}}
           BUILDLOGS: /tmp/buildlogs
-          TMPDIR: /tmp/ardu-build-dir
+          BUILD_BINARIES_PATH: /tmp/ardu-build-dir
         shell: bash
         run: |
           source ~/.bash_profile
           PATH="/github/home/.local/bin:$PATH"
           mkdir -p $BUILDLOGS
+          mkdir -p $BUILD_BINARIES_PATH
           echo $PATH
           #./waf configure --board ${{matrix.config}}
           #./waf plane
