@@ -58,6 +58,7 @@ jobs:
         run: |
           source ~/.bash_profile
           PATH="/github/home/.local/bin:$PATH"
+          mkdir -p $BUILDLOGS
           echo $PATH
           #./waf configure --board ${{matrix.config}}
           #./waf plane
