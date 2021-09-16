@@ -54,6 +54,7 @@ jobs:
         env:
           CI_BUILD_TARGET: ${{matrix.config}}
           BUILDLOGS: /tmp/buildlogs
+          TMPDIR: /tmp/ardu-build-dir
         shell: bash
         run: |
           source ~/.bash_profile
