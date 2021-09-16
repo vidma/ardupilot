@@ -53,6 +53,7 @@ jobs:
       - name: test build ${{matrix.config}}
         env:
           CI_BUILD_TARGET: ${{matrix.config}}
+          BUILDLOGS: /tmp/buildlogs
         shell: bash
         run: |
           source ~/.bash_profile
