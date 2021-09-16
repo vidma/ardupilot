@@ -98,7 +98,7 @@ AUTOBUILD_BOARDS = [ # "fmuv2",
 #                     "obal",
 #                     # SITL targets
                      "SITL_x86_64_linux_gnu",
-                     "SITL_arm_linux_gnueabihf",
+#                      "SITL_arm_linux_gnueabihf",
                     ]
 
 AP_PERIPH_BOARDS = [
