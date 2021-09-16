@@ -12,8 +12,9 @@ jobs:
       fail-fast: false  # don't cancel if a job from the matrix fails
       matrix:
         config: [
-            sitl,
-            CubeOrange,
+            #sitl,
+            #CubeOrange,
+            MambaF405v2
         ]
 
     steps:
@@ -58,6 +59,6 @@ jobs:
           PATH="/github/home/.local/bin:$PATH"
           echo $PATH
           ./waf configure --board ${{matrix.config}}
-          ./waf
+          ./waf plane
           ccache -s
           ccache -z
