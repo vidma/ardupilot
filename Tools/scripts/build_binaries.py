@@ -285,7 +285,7 @@ is bob we will attempt to checkout bob-AVR'''
 
     def write_string_to_filepath(self, string, filepath):
         '''writes the entirety of string to filepath'''
-        with open(filepath, "w") as x:
+        with open(filepath, "w") as x:  # FIXME: encoding='utf-8' ?
             x.write(string)
 
     def version_h_path(self, src):
@@ -346,7 +346,7 @@ is bob we will attempt to checkout bob-AVR'''
 
     def read_string_from_filepath(self, filepath):
         '''returns content of filepath as a string'''
-        with open(filepath, 'rb') as fh:
+        with open(filepath, 'rb', encoding='utf-8') as fh:
             content = fh.read()
         return content
 
