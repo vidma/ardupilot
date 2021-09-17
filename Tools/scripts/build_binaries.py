@@ -390,7 +390,7 @@ is bob we will attempt to checkout bob-AVR'''
                 pass
 
     def build_vehicle(self, tag, vehicle, boards, vehicle_binaries_subdir,
-                      binaryname, frames=[None]):
+                      binaryname, frames=[None], require_checkout=False):
         '''build vehicle binaries'''
         self.progress("Building %s %s binaries (cwd=%s)" %
                       (vehicle, tag, os.getcwd()))
@@ -410,7 +410,7 @@ is bob we will attempt to checkout bob-AVR'''
                     framesuffix = ""
                 else:
                     framesuffix = "-%s" % frame
-                if not self.checkout(vehicle, tag, board, frame, submodule_update=False):
+                if require_checkout and not self.checkout(vehicle, tag, board, frame, submodule_update=False):
                     msg = ("Failed checkout of %s %s %s %s" %
                            (vehicle, board, tag, frame,))
                     self.progress(msg)
@@ -516,7 +516,10 @@ is bob we will attempt to checkout bob-AVR'''
 
     def common_boards(self):
         '''returns list of boards common to all vehicles'''
-        return AUTOBUILD_BOARDS
+        # FIXME
+        return list([
+            b for b in AUTOBUILD_BOARDS 
+        if not 'SITL' in b])
 
     def AP_Periph_boards(self):
         return AP_PERIPH_BOARDS
