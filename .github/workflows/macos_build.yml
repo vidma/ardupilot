@@ -59,7 +59,7 @@ jobs:
         run: |
           source ~/.bash_profile
           PATH="/github/home/.local/bin:$PATH"
-          mkdir -p $BUILDLOGS
+          mkdir -p $BUILDLOGS/binaries
           mkdir -p $BUILD_BINARIES_PATH
           echo $PATH
           #./waf configure --board ${{matrix.config}}
