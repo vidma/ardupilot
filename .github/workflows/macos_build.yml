@@ -66,5 +66,16 @@ jobs:
           #./waf plane
           # latest tag would use newer compiled, but it's not installed (linked)...
           ./Tools/scripts/build_binaries.py --tags beta
+          tar -cvf /tmp/buildlogs/built_binaries.tar /tmp/buildlogs/binaries/Plane/
           ccache -s
           ccache -z
+      - name: 'Upload'
+        uses: actions/upload-artifact@v2
+        with:
+          name: arduplane build files tar
+          path: /tmp/buildlogs/built_binaries.tar
+      - name: 'Upload individual files'
+        uses: actions/upload-artifact@v2
+        with:
+          name: arduplane build files
+          path: /tmp/buildlogs/binaries/Plane/
