@@ -323,7 +323,8 @@ is bob we will attempt to checkout bob-AVR'''
         ss = r".*define +FIRMWARE_VERSION[	 ]+(?P<major>\d+)[ ]*,[ 	]*" \
              r"(?P<minor>\d+)[ ]*,[	 ]*(?P<point>\d+)[ ]*,[	 ]*" \
              r"(?P<type>[A-Z_]+)[	 ]*"
-        content = self.read_string_from_filepath(versionfile)
+        # FIXME: content returned by read_string_from_filepath is binary!    
+        content = self.read_string_from_filepath(versionfile).decode('utf-8')
         match = re.search(ss, content)
         if match is None:
             self.progress("Failed to retrieve FIRMWARE_VERSION from version.h")
@@ -350,7 +351,7 @@ is bob we will attempt to checkout bob-AVR'''
 
     def read_string_from_filepath(self, filepath):
         '''returns content of filepath as a string'''
-        with open(filepath, 'rb', encoding='utf-8') as fh:
+        with open(filepath, 'rb') as fh:
             content = fh.read()
         return content
 
