@@ -342,7 +342,11 @@ is bob we will attempt to checkout bob-AVR'''
     def addfwversion(self, destdir, src):
         '''write version information into destdir'''
         self.addfwversion_gitversion(destdir, src)
-        self.addfwversion_firmwareversiontxt(destdir, src)
+        try:
+            self.addfwversion_firmwareversiontxt(destdir, src)
+        except:
+            import traceback
+            traceback.print_stack()
 
     def read_string_from_filepath(self, filepath):
         '''returns content of filepath as a string'''
