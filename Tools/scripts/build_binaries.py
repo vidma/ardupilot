@@ -517,7 +517,10 @@ is bob we will attempt to checkout bob-AVR'''
                                                  vehicle_binaries_subdir, tag))
 
                 # record some history about this build
-                self.history.record_build(githash, tag, vehicle, board, frame, bare_path, t0, time_taken_to_build)
+                try:
+                    self.history.record_build(githash, tag, vehicle, board, frame, bare_path, t0, time_taken_to_build)
+                except:
+                    pass
 
         self.checkout(vehicle, "latest")
 
