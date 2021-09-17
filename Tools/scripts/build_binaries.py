@@ -301,7 +301,7 @@ is bob we will attempt to checkout bob-AVR'''
         gitversion_content = gitlog
         versionfile = self.version_h_path(src)
         if os.path.exists(versionfile):
-            content = self.read_string_from_filepath(versionfile)
+            content = self.read_string_from_filepath(versionfile).decode('utf-8')
             match = re.search('define.THISFIRMWARE "([^"]+)"', content)
             if match is None:
                 self.progress("Failed to retrieve THISFIRMWARE from version.h")
