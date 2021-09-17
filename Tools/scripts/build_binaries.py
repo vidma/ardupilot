@@ -505,6 +505,8 @@ is bob we will attempt to checkout bob-AVR'''
                         self.copyit(path, ddir, tag, vehicle)
                     except Exception as e:
                         self.progress("Failed to copy %s to %s: %s" % (path, ddir, str(e)))
+                        import traceback
+                        traceback.print_stack()
                 # why is touching this important? -pb20170816
                 self.touch_filepath(os.path.join(self.binaries,
                                                  vehicle_binaries_subdir, tag))
