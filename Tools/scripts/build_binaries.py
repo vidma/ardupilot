@@ -80,8 +80,9 @@ ALL_PROJECTS = [
 
 
 class build_binaries(object):
-    def __init__(self, tags, boards=None, projects=ALL_PROJECTS):
+    def __init__(self, tags, boards=None, projects=ALL_PROJECTS, require_checkout=True):
         self.tags = tags
+        self.require_checkout = require_checkout
         if boards:
             self.selected_boards = boards
         else:
@@ -417,7 +418,7 @@ is bob we will attempt to checkout bob-AVR'''
                 pass
 
     def build_vehicle(self, tag, vehicle, boards, vehicle_binaries_subdir,
-                      binaryname, frames=[None], require_checkout=False):
+                      binaryname, frames=[None]):
         '''build vehicle binaries'''
         self.progress("Building %s %s binaries (cwd=%s)" %
                       (vehicle, tag, os.getcwd()))
@@ -437,7 +438,7 @@ is bob we will attempt to checkout bob-AVR'''
                     framesuffix = ""
                 else:
                     framesuffix = "-%s" % frame
-                if require_checkout and not self.checkout(vehicle, tag, board, frame, submodule_update=False):
+                if self.require_checkout and not self.checkout(vehicle, tag, board, frame, submodule_update=False):
                     msg = ("Failed checkout of %s %s %s %s" %
                            (vehicle, board, tag, frame,))
                     self.progress(msg)
@@ -774,8 +775,10 @@ if __name__ == '__main__':
                       default=[], help="boards to build")
     parser.add_option("", "--projects", action="append", type="string",
                       default=[], help="projects to build")
-    parser.add_option("", "--skip-history", action="append", type="string",
+    parser.add_option("", "--skip-history", type="string",
                       default=[], help="skip recording of build history?")
+    parser.add_option("", "--require-checkout", type="string",
+                      default='yes', help="shall we do git checkout?")
     cmd_opts, cmd_args = parser.parse_args()
 
     tags = cmd_opts.tags
@@ -785,9 +788,10 @@ if __name__ == '__main__':
 
     boards = flatten_comma_opts(cmd_opts.boards)
     projects = flatten_comma_opts(cmd_opts.projects)
+    require_checkout = cmd_args.require_checkout == "yes"
     if len(projects) == 0:
         projects = ALL_PROJECTS
     projects = filter_valid_projects(projects)
 
-    bb = build_binaries(tags, boards=boards, projects=projects)
+    bb = build_binaries(tags, boards=boards, projects=projects, require_checkout=require_checkout)
     bb.run()
