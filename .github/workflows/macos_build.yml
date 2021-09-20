@@ -1,6 +1,12 @@
-name: Macos Build
+name: Manual Firmware build (ready to upload to FC)
 
-on: [push, pull_request, workflow_dispatch]
+  workflow_dispatch:
+    inputs:
+      boards:
+        description: 'Boards to build'
+        required: true
+        default: 'MambaF405v2,MatekF765-Wing'
+
 concurrency:
   group: ci-${{github.workflow}}-${{ github.ref }}
   cancel-in-progress: true
@@ -8,14 +14,6 @@ concurrency:
 jobs:
   build:
     runs-on: 'macos-latest'
-    strategy:
-      fail-fast: false  # don't cancel if a job from the matrix fails
-      matrix:
-        config: [
-            #sitl,
-            #CubeOrange,
-            MambaF405v2
-        ]
 
     steps:
       - uses: actions/checkout@v2
@@ -24,9 +22,6 @@ jobs:
       - name: Install Prerequisites
         shell: bash
         run: |
-          if [[ ${{ matrix.config }} == "sitl" ]]; then
-            export DO_AP_STM_ENV=0
-          fi
           Tools/environment_install/install-prereqs-mac.sh -y
           source ~/.bash_profile
       # Put ccache into github cache for faster build
@@ -39,8 +34,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ~/.ccache
-          key: ${{github.workflow}}-ccache-${{matrix.config}}-${{steps.ccache_cache_timestamp.outputs.timestamp}}
-          restore-keys: ${{github.workflow}}-ccache-${{matrix.config}} # restore ccache from either previous build on this branch or on master
+          key: ${{github.workflow}}-ccache-manual-${{steps.ccache_cache_timestamp.outputs.timestamp}}
+          restore-keys: ${{github.workflow}}-ccache-manual # restore ccache from either previous build on this branch or on master
       - name: setup ccache
         run: |
           mkdir -p ~/.ccache
@@ -50,9 +45,8 @@ jobs:
           echo "max_size = 400M" >> ~/.ccache/ccache.conf
           ccache -s
           ccache -z
-      - name: test build ${{matrix.config}}
+      - name: manual build for ${{ github.event.inputs.boards }}
         env:
-          CI_BUILD_TARGET: ${{matrix.config}}
           BUILDLOGS: /tmp/buildlogs
           BUILD_BINARIES_PATH: /tmp/ardu-build-dir
         shell: bash
@@ -61,21 +55,13 @@ jobs:
           PATH="/github/home/.local/bin:$PATH"
           mkdir -p $BUILDLOGS/binaries
           mkdir -p $BUILD_BINARIES_PATH
-          echo $PATH
-          #./waf configure --board ${{matrix.config}}
-          #./waf plane
-          # latest tag would use newer compiled, but it's not installed (linked)...
-          ./Tools/scripts/build_binaries.py --tags beta
+          # latest tag would use newer compiled, but it's not installed here (linked)...
+          ./Tools/scripts/build_binaries.py --tags beta --boards ${{ github.event.inputs.boards }}
           tar -cvf /tmp/buildlogs/built_binaries.tar /tmp/buildlogs/binaries/Plane/
           ccache -s
           ccache -z
       - name: 'Upload'
         uses: actions/upload-artifact@v2
         with:
-          name: arduplane build files tar
+          name: arduplane build files tar of ${{ github.event.inputs.boards }}
           path: /tmp/buildlogs/built_binaries.tar
-      - name: 'Upload individual files'
-        uses: actions/upload-artifact@v2
-        with:
-          name: arduplane build files
-          path: /tmp/buildlogs/binaries/Plane/
