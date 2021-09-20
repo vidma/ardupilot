@@ -774,6 +774,8 @@ if __name__ == '__main__':
                       default=[], help="boards to build")
     parser.add_option("", "--projects", action="append", type="string",
                       default=[], help="projects to build")
+    parser.add_option("", "--skip-history", action="append", type="string",
+                      default=[], help="skip recording of build history?")
     cmd_opts, cmd_args = parser.parse_args()
 
     tags = cmd_opts.tags
