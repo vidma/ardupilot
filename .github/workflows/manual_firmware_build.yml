@@ -61,7 +61,7 @@ jobs:
           mkdir -p $BUILDLOGS/binaries
           mkdir -p $BUILD_BINARIES_PATH
           # latest tag would use newer compiled, but it's not installed here (linked)...
-          ./Tools/scripts/build_binaries.py --tags beta --boards ${{ github.event.inputs.boards }} --skip--history yes --require-checkout no
+          ./Tools/scripts/build_binaries.py --tags beta --boards ${{ github.event.inputs.boards }} --skip-history yes --require-checkout no
           tar -cvf /tmp/buildlogs/built_binaries.tar /tmp/buildlogs/binaries/Plane/
           ccache -s
           ccache -z
