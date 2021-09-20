@@ -731,8 +731,10 @@ is bob we will attempt to checkout bob-AVR'''
             for p, build_fn in possible_builds:
                 if p in self.projects:
                     build_fn()
-
-            self.history.record_run(githash, tag, t0, time.time()-t0)
+            try:
+                self.history.record_run(githash, tag, t0, time.time()-t0)
+            except:
+                print('history failed')
 
         if os.path.exists(self.tmpdir):
             shutil.rmtree(self.tmpdir)
