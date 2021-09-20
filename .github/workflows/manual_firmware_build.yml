@@ -1,11 +1,16 @@
-name: Manual Firmware build (ready to upload to FC)
+name: Manual Firmware build (produce downloadable *_with_bl.hex ready to upload to FC)
 
+on:
   workflow_dispatch:
     inputs:
       boards:
-        description: 'Boards to build'
+        description: 'Boards to build (see `Tools/scripts/board_list.py` for a full list)'
         required: true
-        default: 'MambaF405v2,MatekF765-Wing'
+        default: 'MatekF405-Wing,MatekF405-CAN,MatekF765-Wing,MambaF405v2'
+      projects:
+        description: 'Boards to build (e.g. `arducopter,arduplane,rover,antennatracker,ardusub,AP_Periph` )'
+        required: true
+        default: 'arduplane'
 
 concurrency:
   group: ci-${{github.workflow}}-${{ github.ref }}
