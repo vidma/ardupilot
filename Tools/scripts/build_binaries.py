@@ -364,12 +364,8 @@ is bob we will attempt to checkout bob-AVR'''
         '''write version information into destdir'''
         self.addfwversion_gitversion(destdir, src)
         # FIXME: this seem to sometimes result in utf-8/encoding issues. at least add traceback for now
-        try:
-            self.addfwversion_firmwareversiontxt(destdir, src)
-        except:
-            import traceback
-            traceback.print_stack()
-            raise
+        self.addfwversion_firmwareversiontxt(destdir, src)
+
 
     def read_string_from_filepath(self, filepath):
         '''returns content of filepath as a string'''
