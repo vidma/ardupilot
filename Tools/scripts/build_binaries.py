@@ -343,7 +343,7 @@ is bob we will attempt to checkout bob-AVR'''
         ss = r".*define +FIRMWARE_VERSION[	 ]+(?P<major>\d+)[ ]*,[ 	]*" \
              r"(?P<minor>\d+)[ ]*,[	 ]*(?P<point>\d+)[ ]*,[	 ]*" \
              r"(?P<type>[A-Z_]+)[	 ]*"
-        # FIXME: content returned by read_string_from_filepath is binary!    
+        # FIXME: content returned by read_string_from_filepath is binary!
         content = self.read_string_from_filepath(versionfile).decode('utf-8')
         match = re.search(ss, content)
         if match is None:
@@ -544,11 +544,8 @@ is bob we will attempt to checkout bob-AVR'''
                                                  vehicle_binaries_subdir, tag))
 
                 # record some history about this build if needed
-                try:
+                if not skip_history:
                     self.history.record_build(githash, tag, vehicle, board, frame, bare_path, t0, time_taken_to_build)
-                except:
-                    if not skip_history:
-                        raise
 
         self.checkout(vehicle, "latest")
 
@@ -723,7 +720,6 @@ is bob we will attempt to checkout bob-AVR'''
         self.buildroot = os.path.join(os.environ.get("TMPDIR"),
                                       "binaries.build")
 
-
         for tag in self.tags:
             t0 = time.time()
             possible_builds = [
@@ -737,10 +733,8 @@ is bob we will attempt to checkout bob-AVR'''
             for p, build_fn in possible_builds:
                 if p in self.projects:
                     build_fn()
-            try:
+            if not skip_history:
                 self.history.record_run(githash, tag, t0, time.time()-t0)
-            except:
-                print('history failed')
 
         if os.path.exists(self.tmpdir):
             shutil.rmtree(self.tmpdir)
@@ -771,6 +765,7 @@ def flatten_comma_opts(opts):
 def filter_valid_projects(projects):
     return [p for p in projects if p in ALL_PROJECTS]
 
+
 if __name__ == '__main__':
     parser = optparse.OptionParser("build_binaries.py")
 
@@ -797,5 +792,11 @@ if __name__ == '__main__':
     skip_history = cmd_opts.skip_history == "yes"
     projects = filter_valid_projects(projects)
 
-    bb = build_binaries(tags, selected_boards=boards, projects=projects, require_checkout=require_checkout, skip_history=skip_history)
+    bb = build_binaries(
+        tags=tags,
+        selected_boards=boards,
+        projects=projects,
+        require_checkout=require_checkout,
+        skip_history=skip_history
+    )
     bb.run()
