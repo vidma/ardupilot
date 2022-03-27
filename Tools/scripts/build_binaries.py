@@ -110,6 +110,8 @@ class build_binaries(object):
         '''return board-specific options'''
         if board in ["bebop", "disco"]:
             return ["--static"]
+        if board in ["MatekF405-CAN"]:
+            return ["--osd"]
         return []
 
     def run_waf(self, args, compiler=None):
