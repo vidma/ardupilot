@@ -47,6 +47,10 @@
 #include <Filter/HarmonicNotchFilter.h>
 #include <AP_Math/polyfit.h>
 
+#ifndef AP_SIM_INS_ENABLED
+#define AP_SIM_INS_ENABLED (CONFIG_HAL_BOARD == HAL_BOARD_SITL)
+#endif
+
 class AP_InertialSensor_Backend;
 class AuxiliaryBus;
 class AP_AHRS;
@@ -155,7 +159,7 @@ public:
     bool get_gyro_health(uint8_t instance) const { return (instance<_gyro_count) ? _gyro_healthy[instance] : false; }
     bool get_gyro_health(void) const { return get_gyro_health(_primary_gyro); }
     bool get_gyro_health_all(void) const;
-    uint8_t get_gyro_count(void) const { return _gyro_count; }
+    uint8_t get_gyro_count(void) const { return MIN(INS_MAX_INSTANCES, _accel_count); }
     bool gyro_calibrated_ok(uint8_t instance) const { return _gyro_cal_ok[instance]; }
     bool gyro_calibrated_ok_all() const;
     bool use_gyro(uint8_t instance) const;
@@ -164,7 +168,7 @@ public:
     bool get_accel_health(uint8_t instance) const { return (instance<_accel_count) ? _accel_healthy[instance] : false; }
     bool get_accel_health(void) const { return get_accel_health(_primary_accel); }
     bool get_accel_health_all(void) const;
-    uint8_t get_accel_count(void) const { return _accel_count; }
+    uint8_t get_accel_count(void) const { return MIN(INS_MAX_INSTANCES, _accel_count); }
     bool accel_calibrated_ok_all() const;
     bool use_accel(uint8_t instance) const;
 
@@ -276,6 +280,9 @@ public:
         return _harmonic_notch_filter.hasOption(option);
     }
 
+    // write out harmonic notch log messages
+    void write_notch_log_messages() const;
+
     // indicate which bit in LOG_BITMASK indicates raw logging enabled
     void set_log_raw_bit(uint32_t log_raw_bit) { _log_raw_bit = log_raw_bit; }
 
@@ -354,7 +361,7 @@ public:
         };
 
         void init();
-        void sample(uint8_t instance, IMU_SENSOR_TYPE _type, uint64_t sample_us, const Vector3f &sample);
+        void sample(uint8_t instance, IMU_SENSOR_TYPE _type, uint64_t sample_us, const Vector3f &sample) __RAMFUNC__;
 
         // a function called by the main thread at the main loop rate:
         void periodic();
@@ -393,7 +400,7 @@ public:
         void rotate_to_next_sensor();
         void update_doing_sensor_rate_logging();
 
-        bool should_log(uint8_t instance, IMU_SENSOR_TYPE type);
+        bool should_log(uint8_t instance, IMU_SENSOR_TYPE type) __RAMFUNC__;
         void push_data_to_log();
 
         // Logging functions

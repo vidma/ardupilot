@@ -19,6 +19,7 @@ import time
 import string
 import subprocess
 import sys
+import traceback
 import gzip
 
 # local imports
@@ -86,9 +87,6 @@ class build_binaries(object):
         self.selected_boards = selected_boards # P.S. build all boards when selected_boards=[]
         self.projects = projects
         self.dirty = False
-        binaries_history_filepath = os.path.join(self.buildlogs_dirpath(),
-                                                 "build_binaries_history.sqlite")
-        self.history = build_binaries_history.BuildBinariesHistory(binaries_history_filepath)
 
     def progress(self, string):
         '''pretty-print progress'''
@@ -323,7 +321,7 @@ is bob we will attempt to checkout bob-AVR'''
         gitversion_content = gitlog
         versionfile = self.version_h_path(src)
         if os.path.exists(versionfile):
-            content = self.read_string_from_filepath(versionfile).decode('utf-8')
+            content = self.read_string_from_filepath(versionfile) #  .decode('utf-8')
             match = re.search('define.THISFIRMWARE "([^"]+)"', content)
             if match is None:
                 self.progress("Failed to retrieve THISFIRMWARE from version.h")
@@ -346,7 +344,7 @@ is bob we will attempt to checkout bob-AVR'''
              r"(?P<minor>\d+)[ ]*,[	 ]*(?P<point>\d+)[ ]*,[	 ]*" \
              r"(?P<type>[A-Z_]+)[	 ]*"
         # FIXME: content returned by read_string_from_filepath is binary!    
-        content = self.read_string_from_filepath(versionfile).decode('utf-8')
+        content = self.read_string_from_filepath(versionfile) #  .decode('utf-8')
         match = re.search(ss, content)
         if match is None:
             self.progress("Failed to retrieve FIRMWARE_VERSION from version.h")
@@ -377,6 +375,10 @@ is bob we will attempt to checkout bob-AVR'''
         '''returns content of filepath as a string'''
         with open(filepath, 'rb') as fh:
             content = fh.read()
+
+        if running_python3:
+            return content.decode('ascii')
+
         return content
 
     def string_in_filepath(self, string, filepath):
@@ -538,6 +540,7 @@ is bob we will attempt to checkout bob-AVR'''
                     try:
                         self.copyit(path, ddir, tag, vehicle)
                     except Exception as e:
+                        self.print_exception_caught(e)
                         self.progress("Failed to copy %s to %s: %s" % (path, ddir, str(e)))
                         import traceback
                         traceback.print_stack()
@@ -553,6 +556,19 @@ is bob we will attempt to checkout bob-AVR'''
                         raise
 
         self.checkout(vehicle, "latest")
+
+    def get_exception_stacktrace(self, e):
+        if sys.version_info[0] >= 3:
+            ret = "%s\n" % e
+            ret += ''.join(traceback.format_exception(etype=type(e),
+                                                      value=e,
+                                                      tb=e.__traceback__))
+            return ret
+        return traceback.format_exc(e)
+
+    def print_exception_caught(self, e, send_statustext=True):
+        self.progress("Exception caught: %s" %
+                      self.get_exception_stacktrace(e))
 
     def common_boards(self):
         '''returns list of boards common to all vehicles'''
@@ -623,6 +639,15 @@ is bob we will attempt to checkout bob-AVR'''
                            "AP_Periph",
                            "AP_Periph")
 
+    def build_blimp(self, tag):
+        '''build Blimp binaries'''
+        boards = self.common_boards()
+        self.build_vehicle(tag,
+                           "Blimp",
+                           boards,
+                           "Blimp",
+                           "blimp")
+
     def generate_manifest(self):
         '''generate manigest files for GCS to download'''
         self.progress("Generating manifest")
@@ -682,6 +707,12 @@ is bob we will attempt to checkout bob-AVR'''
     def run(self):
         self.validate()
 
+        self.mkpath(self.buildlogs_dirpath())
+
+        binaries_history_filepath = os.path.join(
+            self.buildlogs_dirpath(), "build_binaries_history.sqlite")
+        self.history = build_binaries_history.BuildBinariesHistory(binaries_history_filepath)
+
         prefix_bin_dirpath = os.path.join(os.environ.get('HOME'),
                                           "prefix", "bin")
         origin_env_path = os.environ.get("PATH")
@@ -735,6 +766,7 @@ is bob we will attempt to checkout bob-AVR'''
                 (ANTENNATRACKER, lambda: self.build_antennatracker(tag)),
                 (ARDUSUB, lambda: self.build_ardusub(tag)),
                 (AP_PERIPH, lambda: self.build_AP_Periph(tag))
+                # FIXME: self.build_blimp(tag)
             ]
             for p, build_fn in possible_builds:
                 if p in self.projects:

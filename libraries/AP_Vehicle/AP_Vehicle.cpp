@@ -67,6 +67,12 @@ const AP_Param::GroupInfo AP_Vehicle::var_info[] = {
     AP_SUBGROUPINFO(efi, "EFI", 9, AP_Vehicle, AP_EFI),
 #endif
 
+#if AP_AIRSPEED_ENABLED
+    // @Group: ARSPD
+    // @Path: ../AP_Airspeed/AP_Airspeed.cpp
+    AP_SUBGROUPINFO(airspeed, "ARSPD", 10, AP_Vehicle, AP_Airspeed),
+#endif
+
     AP_GROUPEND
 };
 
@@ -145,6 +151,18 @@ void AP_Vehicle::setup()
 
     // init_ardupilot is where the vehicle does most of its initialisation.
     init_ardupilot();
+
+#if AP_AIRSPEED_ENABLED
+    airspeed.init();
+    if (airspeed.enabled()) {
+        airspeed.calibrate(true);
+    } 
+#if APM_BUILD_TYPE(APM_BUILD_ArduPlane)
+    else {
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING,"No airspeed sensor present or enabled");
+    }
+#endif
+#endif  // AP_AIRSPEED_ENABLED
 
 #if !APM_BUILD_TYPE(APM_BUILD_Replay)
     SRV_Channels::init();
@@ -256,6 +274,9 @@ SCHED_TASK_CLASS arguments:
 
  */
 const AP_Scheduler::Task AP_Vehicle::scheduler_tasks[] = {
+#if AP_AIRSPEED_ENABLED
+    SCHED_TASK_CLASS(AP_Airspeed,  &vehicle.airspeed,       update,                   10, 100, 41),    // NOTE: the priority number here should be right before Plane's calc_airspeed_errors
+#endif
 #if HAL_RUNCAM_ENABLED
     SCHED_TASK_CLASS(AP_RunCam,    &vehicle.runcam,         update,                   50, 50, 200),
 #endif
@@ -362,32 +383,6 @@ bool AP_Vehicle::is_crashed() const
         return false;
     }
     return AP::arming().last_disarm_method() == AP_Arming::Method::CRASH;
-}
-
-// @LoggerMessage: FTN
-// @Description: Filter Tuning Messages
-// @Field: TimeUS: microseconds since system startup
-// @Field: NDn: number of active dynamic harmonic notches
-// @Field: NF1: dynamic harmonic notch centre frequency for motor 1
-// @Field: NF2: dynamic harmonic notch centre frequency for motor 2
-// @Field: NF3: dynamic harmonic notch centre frequency for motor 3
-// @Field: NF4: dynamic harmonic notch centre frequency for motor 4
-// @Field: NF5: dynamic harmonic notch centre frequency for motor 5
-// @Field: NF6: dynamic harmonic notch centre frequency for motor 6
-// @Field: NF7: dynamic harmonic notch centre frequency for motor 7
-// @Field: NF8: dynamic harmonic notch centre frequency for motor 8
-// @Field: NF9: dynamic harmonic notch centre frequency for motor 9
-// @Field: NF10: dynamic harmonic notch centre frequency for motor 10
-// @Field: NF11: dynamic harmonic notch centre frequency for motor 11
-// @Field: NF12: dynamic harmonic notch centre frequency for motor 12
-void AP_Vehicle::write_notch_log_messages() const
-{
-    const float* notches = ins.get_gyro_dynamic_notch_center_frequencies_hz();
-    AP::logger().Write(
-        "FTN", "TimeUS,NDn,NF1,NF2,NF3,NF4,NF5,NF6,NF7,NF8,NF9,NF10,NF11,NF12", "s-zzzzzzzzzzzz", "F-------------", "QBffffffffffff", AP_HAL::micros64(), ins.get_num_gyro_dynamic_notch_center_frequencies(),
-            notches[0], notches[1], notches[2], notches[3],
-            notches[4], notches[5], notches[6], notches[7],
-            notches[8], notches[9], notches[10], notches[11]);
 }
 
 // run notch update at either loop rate or 200Hz
@@ -511,7 +506,6 @@ void AP_Vehicle::accel_cal_update()
 #endif
 #endif // HAL_INS_ENABLED
 }
-
 
 AP_Vehicle *AP_Vehicle::_singleton = nullptr;
 

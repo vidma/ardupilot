@@ -1658,7 +1658,7 @@ class AutoTest(ABC):
         if self.params is None:
             self.params = self.model_defaults_filepath(self.frame)
         for x in self.params:
-            self.repeatedly_apply_parameter_file(os.path.join(testdir, x))
+            self.repeatedly_apply_parameter_file(x)
 
     def count_lines_in_filepath(self, filepath):
         return len([i for i in open(filepath)])
@@ -1701,9 +1701,7 @@ class AutoTest(ABC):
         self.mav.mav.fence_fetch_point_send(target_system,
                                             target_component,
                                             idx)
-        m = self.mav.recv_match(type="FENCE_POINT", blocking=True, timeout=2)
-        if m is None:
-            raise NotAchievedException("Did not get fence return point back")
+        m = self.assert_receive_message("FENCE_POINT", timeout=2)
         self.progress("m: %s" % str(m))
         if m.idx != idx:
             raise NotAchievedException("Invalid idx returned (want=%u got=%u)" %
@@ -2102,6 +2100,7 @@ class AutoTest(ABC):
         return ret
 
     def all_log_format_ids(self):
+        '''parse C++ code to extract definitions of log messages'''
         structure_files = self.find_LogStructureFiles()
         structure_lines = []
         for f in structure_files:
@@ -2157,7 +2156,16 @@ class AutoTest(ABC):
                 if linestate == linestate_within:
                     m = re.match("(.*)}", line)
                     if m is None:
-                        raise NotAchievedException("Bad closing line (%s)" % line)
+                        line = line.rstrip()
+                        newline = re.sub(r"\\$", "", line)
+                        if newline == line:
+                            raise NotAchievedException("Expected backslash at end of line")
+                        line = newline
+                        line = line.rstrip()
+                        # cpp-style string concatenation:
+                        line = re.sub(r'"\s*"', '', line)
+                        partial_line += line
+                        continue
                     message_infos.append(partial_line + m.group(1))
                     linestate = linestate_none
                     continue
@@ -2216,7 +2224,16 @@ class AutoTest(ABC):
                 if linestate == linestate_within:
                     m = re.match("(.*)}", line)
                     if m is None:
-                        raise NotAchievedException("Bad closing line (%s)" % line)
+                        line = line.rstrip()
+                        newline = re.sub(r"\\$", "", line)
+                        if newline == line:
+                            raise NotAchievedException("Expected backslash at end of line")
+                        line = newline
+                        line = line.rstrip()
+                        # cpp-style string concatenation:
+                        line = re.sub(r'"\s*"', '', line)
+                        partial_line += line
+                        continue
                     message_infos.append(partial_line + m.group(1))
                     linestate = linestate_none
                     continue
@@ -2400,6 +2417,10 @@ class AutoTest(ABC):
                 continue
             for label in docco_ids[name]["labels"]:
                 if label not in code_ids[name]["labels"].split(","):
+                    # "name" was found in the XML, so was found in an
+                    # @LoggerMessage markup line, but was *NOT* found
+                    # in our bodgy parsing of the C++ code (in a
+                    # Log_Write call or in the static structures
                     raise NotAchievedException("documented field %s.%s not found in code" %
                                                (name, label))
         if len(missing) > 0:
@@ -2855,11 +2876,7 @@ class AutoTest(ABC):
                                            log_id,
                                            ofs,
                                            count)
-        m = self.mav.recv_match(type='LOG_DATA',
-                                blocking=True,
-                                timeout=2)
-        if m is None:
-            raise NotAchievedException("Did not get log data")
+        m = self.assert_receive_message('LOG_DATA', timeout=2)
         if m.ofs != ofs:
             raise NotAchievedException("Incorrect offset")
         if m.count != count:
@@ -2918,11 +2935,7 @@ class AutoTest(ABC):
                 break
             if self.get_sim_time_cached() - tstart > 120:
                 raise NotAchievedException("Did not download log in good time")
-            m = self.mav.recv_match(type='LOG_DATA',
-                                    blocking=True,
-                                    timeout=2)
-            if m is None:
-                raise NotAchievedException("Did not get data")
+            m = self.assert_receive_message('LOG_DATA', timeout=2)
             if m.ofs != bytes_read:
                 raise NotAchievedException("Unexpected offset")
             if m.id != log_id:
@@ -2956,11 +2969,7 @@ class AutoTest(ABC):
                     bytes_read,
                     bytes_to_fetch
                 )
-                m = self.mav.recv_match(type='LOG_DATA',
-                                        blocking=True,
-                                        timeout=2)
-                if m is None:
-                    raise NotAchievedException("Did not get reply")
+                m = self.assert_receive_message('LOG_DATA', timeout=2)
                 self.progress("Read %u bytes at offset %u" % (m.count, m.ofs))
                 if m.ofs != bytes_read:
                     raise NotAchievedException("Incorrect offset in reply want=%u got=%u (%s)" % (bytes_read, m.ofs, str(m)))
@@ -2998,11 +3007,7 @@ class AutoTest(ABC):
                 ofs,
                 bytes_to_fetch
             )
-            m = self.mav.recv_match(type='LOG_DATA',
-                                    blocking=True,
-                                    timeout=2)
-            if m is None:
-                raise NotAchievedException("Did not get reply")
+            m = self.assert_receive_message('LOG_DATA', timeout=2)
             if m.count == 0:
                 raise NotAchievedException("xZero bytes read (ofs=%u)" % (ofs,))
             if m.count > bytes_to_fetch:
@@ -3049,7 +3054,10 @@ class AutoTest(ABC):
             self.last_sim_time_cached = ret
             self.last_sim_time_cached_wallclock = time.time()
         else:
-            if time.time() - self.last_sim_time_cached_wallclock > 30:
+            timeout = 30
+            if self.valgrind:
+                timeout *= 10
+            if time.time() - self.last_sim_time_cached_wallclock > timeout:
                 raise AutoTestTimeoutException("sim_time_cached is not updating!")
         return ret
 
@@ -3165,9 +3173,7 @@ class AutoTest(ABC):
         temp_ok = False
         last_print_temp = -100
         while self.get_sim_time_cached() - tstart < timeout:
-            m = self.mav.recv_match(type='RAW_IMU', blocking=True, timeout=2)
-            if m is None:
-                raise NotAchievedException("RAW_IMU")
+            m = self.assert_receive_message('RAW_IMU', timeout=2)
             temperature = m.temperature*0.01
             if temperature >= target:
                 self.progress("Reached temperature %.1f" % temperature)
@@ -3179,6 +3185,21 @@ class AutoTest(ABC):
 
         if not temp_ok:
             raise NotAchievedException("target temperature")
+
+    def assert_message_field_values(self, m, fieldvalues, verbose=True):
+        for (fieldname, value) in fieldvalues.items():
+            got = getattr(m, fieldname)
+            if got != value:
+                raise NotAchievedException("Expected %s.%s to be %s, got %s" %
+                                           (m.get_type(), fieldname, value, got))
+            if verbose:
+                self.progress("%s.%s has expected value %s" %
+                              (m.get_type(), fieldname, value))
+
+    def assert_received_message_field_values(self, message, fieldvalues, verbose=True, very_verbose=False):
+        m = self.assert_receive_message(message, verbose=verbose, very_verbose=very_verbose)
+        self.assert_message_field_values(m, fieldvalues, verbose=verbose)
+        return m
 
     def onboard_logging_not_log_disarmed(self):
         self.start_subtest("Test LOG_DISARMED-is-false behaviour")
@@ -3357,8 +3378,7 @@ class AutoTest(ABC):
         """Download latest log."""
         filename = "MAVProxy-downloaded-log.BIN"
         mavproxy = self.start_mavproxy()
-        mavproxy.send("module load log\n")
-        mavproxy.expect("Loaded module log")
+        self.mavproxy_load_module(mavproxy, 'log')
         mavproxy.send("log list\n")
         mavproxy.expect("numLogs")
         self.wait_heartbeat()
@@ -3366,8 +3386,7 @@ class AutoTest(ABC):
         mavproxy.send("set shownoise 0\n")
         mavproxy.send("log download latest %s\n" % filename)
         mavproxy.expect("Finished downloading", timeout=120)
-        mavproxy.send("module unload log\n")
-        mavproxy.expect("Unloaded module log")
+        self.mavproxy_unload_module(mavproxy, 'log')
         self.stop_mavproxy(mavproxy)
 
     def log_upload(self):
@@ -3524,10 +3543,12 @@ class AutoTest(ABC):
                 raise ValueError("count %u not handled" % count)
         self.progress("Files same")
 
-    def assert_receive_message(self, type, timeout=1, verbose=False):
+    def assert_receive_message(self, type, timeout=1, verbose=False, very_verbose=False):
         m = self.mav.recv_match(type=type, blocking=True, timeout=timeout)
         if verbose:
             self.progress("Received (%s)" % str(m))
+        if very_verbose:
+            self.progress(self.dump_message_verbose(m))
         if m is None:
             raise NotAchievedException("Did not get %s" % type)
         return m
@@ -4007,9 +4028,7 @@ class AutoTest(ABC):
         """Ensure all rc outputs are at defaults"""
         self.do_timesync_roundtrip()
         _defaults = self.rc_defaults()
-        m = self.mav.recv_match(type='RC_CHANNELS', blocking=True, timeout=5)
-        if m is None:
-            raise NotAchievedException("No RC_CHANNELS messages?!")
+        m = self.assert_receive_message('RC_CHANNELS', timeout=5)
         need_set = {}
         for chan in _defaults:
             default_value = _defaults[chan]
@@ -4224,6 +4243,22 @@ class AutoTest(ABC):
                      timeout=timeout)
         return self.wait_disarmed()
 
+    def disarm_vehicle_expect_fail(self):
+        '''disarm, checking first that non-forced disarm fails, then doing a forced disarm'''
+        self.progress("Disarm - expect to fail")
+        self.run_cmd(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                     0,  # DISARM
+                     0,
+                     0,
+                     0,
+                     0,
+                     0,
+                     0,
+                     timeout=10,
+                     want_result=mavutil.mavlink.MAV_RESULT_FAILED)
+        self.progress("Disarm - forced")
+        self.disarm_vehicle(force=True)
+
     def wait_disarmed_default_wait_time(self):
         return 30
 
@@ -4326,10 +4361,7 @@ class AutoTest(ABC):
         while True:
             if time.time() - start > timeout:
                 raise NotAchievedException("Did not achieve value")
-            m = self.mav.recv_match(type='SERVO_OUTPUT_RAW', blocking=True, timeout=1)
-
-            if m is None:
-                raise NotAchievedException("Did not get SERVO_OUTPUT_RAW")
+            m = self.assert_receive_message('SERVO_OUTPUT_RAW', timeout=1)
             channel_field = "servo%u_raw" % channel
             m_value = getattr(m, channel_field, None)
             self.progress("Servo%u=%u want=%u" % (channel, m_value, value))
@@ -5062,11 +5094,7 @@ class AutoTest(ABC):
                                        0,
                                        0,
                                        0)
-        m = self.mav.recv_match(type='AUTOPILOT_VERSION',
-                                blocking=True,
-                                timeout=10)
-        if m is None:
-            raise NotAchievedException("Did not get AUTOPILOT_VERSION")
+        m = self.assert_receive_message('AUTOPILOT_VERSION', timeout=10)
         return m.capabilities
 
     def test_get_autopilot_capabilities(self):
@@ -5297,12 +5325,7 @@ class AutoTest(ABC):
                                        (quality, m.signal_quality))
 
     def get_rangefinder_distance(self):
-        m = self.mav.recv_match(type='RANGEFINDER',
-                                blocking=True,
-                                timeout=5)
-        if m is None:
-            raise NotAchievedException("Did not get RANGEFINDER message")
-
+        m = self.assert_receive_message('RANGEFINDER', timeout=5)
         return m.distance
 
     def wait_rangefinder_distance(self, dist_min, dist_max, timeout=30, **kwargs):
@@ -5326,10 +5349,7 @@ class AutoTest(ABC):
     def get_esc_rpm(self, esc):
         if esc > 4:
             raise ValueError("Only does 1-4")
-        m = self.mav.recv_match(type='ESC_TELEMETRY_1_TO_4', blocking=True, timeout=1)
-        if m is None:
-            raise NotAchievedException("Did not get ESC_TELEMETRY_1_TO_4")
-        self.progress("%s" % str(m))
+        m = self.assert_receive_message('ESC_TELEMETRY_1_TO_4', timeout=1, verbose=True)
         return m.rpm[esc-1]
 
     def find_first_set_bit(self, mask):
@@ -5422,9 +5442,9 @@ class AutoTest(ABC):
 
         self.wait_and_maintain(
             value_name="Groundspeed",
-            target=speed_min,
+            target=(speed_min+speed_max)/2,
             current_value_getter=lambda: get_groundspeed(timeout),
-            accuracy=(speed_max - speed_min),
+            accuracy=(speed_max - speed_min)/2,
             validator=lambda value2, target2: validator(value2, target2),
             timeout=timeout,
             **kwargs
@@ -5818,6 +5838,21 @@ class AutoTest(ABC):
             if comparator(m_value, value):
                 return m_value
 
+    def assert_servo_channel_value(self, channel, value, comparator=operator.eq):
+        """assert channel value (default condition is equality)"""
+        channel_field = "servo%u_raw" % channel
+        opstring = ("%s" % comparator)[-3:-1]
+        m = self.assert_receive_message('SERVO_OUTPUT_RAW', timeout=1)
+        m_value = getattr(m, channel_field, None)
+        if m_value is None:
+            raise ValueError("message (%s) has no field %s" %
+                             (str(m), channel_field))
+        self.progress("assert SERVO_OUTPUT_RAW.%s=%u %s %u" %
+                      (channel_field, m_value, opstring, value))
+        if comparator(m_value, value):
+            return m_value
+        raise NotAchievedException("Wrong value")
+
     def get_rc_channel_value(self, channel, timeout=2):
         """wait for channel to hit value"""
         channel_field = "chan%u_raw" % channel
@@ -5849,6 +5884,16 @@ class AutoTest(ABC):
                           (channel_field, m_value, value))
             if value == m_value:
                 return
+
+    def assert_rc_channel_value(self, channel, value):
+        channel_field = "chan%u_raw" % channel
+
+        m_value = self.get_rc_channel_value(channel, timeout=1)
+        self.progress("RC_CHANNELS.%s=%u want=%u" %
+                      (channel_field, m_value, value))
+        if value != m_value:
+            raise NotAchievedException("Expected %s to be %u got %u" %
+                                       (channel, value, m_value))
 
     def wait_location(self,
                       loc,
@@ -5889,7 +5934,12 @@ class AutoTest(ABC):
             if self.get_sim_time() - tstart > timeout:
                 raise AutoTestTimeoutException("Did not get wanted current waypoint")
             seq = self.mav.waypoint_current()
-            self.progress("Waiting for wp=%u current=%u" % (wpnum, seq))
+            wp_dist = None
+            try:
+                wp_dist = self.mav.messages['NAV_CONTROLLER_OUTPUT'].wp_dist
+            except (KeyError, AttributeError):
+                pass
+            self.progress("Waiting for wp=%u current=%u dist=%sm" % (wpnum, seq, wp_dist))
             if seq == wpnum:
                 break
 
@@ -5916,8 +5966,7 @@ class AutoTest(ABC):
         last_wp_msg = 0
         while self.get_sim_time_cached() < tstart + timeout:
             seq = self.mav.waypoint_current()
-            m = self.mav.recv_match(type='NAV_CONTROLLER_OUTPUT',
-                                    blocking=True)
+            m = self.assert_receive_message('NAV_CONTROLLER_OUTPUT')
             wp_dist = m.wp_dist
             m = self.mav.recv_match(type='VFR_HUD', blocking=True)
 
@@ -6002,11 +6051,7 @@ class AutoTest(ABC):
         return self.sensor_has_state(sensor, present, enabled, healthy, do_assert=True, verbose=verbose)
 
     def sensor_has_state(self, sensor, present=True, enabled=True, healthy=True, do_assert=False, verbose=False):
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True, timeout=5)
-        if m is None:
-            raise NotAchievedException("Did not receive SYS_STATUS")
-        if verbose:
-            self.progress("Status: %s" % str(self.dump_message_verbose(m)))
+        m = self.assert_receive_message('SYS_STATUS', timeout=5, very_verbose=verbose)
         reported_present = m.onboard_control_sensors_present & sensor
         reported_enabled = m.onboard_control_sensors_enabled & sensor
         reported_healthy = m.onboard_control_sensors_health & sensor
@@ -6126,9 +6171,7 @@ class AutoTest(ABC):
             self.wait_gps_sys_status_not_present_or_enabled_and_healthy()
         armable_time = self.get_sim_time() - start
         if require_absolute:
-            m = self.poll_home_position()
-            if m is None:
-                raise NotAchievedException("Did not receive a home position")
+            self.poll_home_position()
         if check_prearm_bit:
             self.wait_prearm_sys_status_healthy(timeout=timeout)
         self.progress("Took %u seconds to become armable" % armable_time)
@@ -6358,7 +6401,7 @@ Also, ignores heartbeats not from our target system'''
                 source_system=250,
                 source_component=250,
                 autoreconnect=True,
-                dialect="ardupilotmega",  # if we don't pass this in we end up with the wrong mavlink version...
+                dialect="all",  # if we don't pass this in we end up with the wrong mavlink version...
             )
         except Exception as msg:
             self.progress("Failed to start mavlink connection on %s: %s" %
@@ -6553,8 +6596,12 @@ Also, ignores heartbeats not from our target system'''
             self.progress("Armed at end of test; force-rebooting SITL")
             self.disarm_vehicle(force=True)
             self.forced_post_test_sitl_reboots += 1
-            self.progress("Force-resetting SITL")
-            self.reboot_sitl() # that'll learn it
+            if reset_needed:
+                self.progress("Force-resetting SITL")
+                self.reset_SITL_commandline()
+            else:
+                self.progress("Force-rebooting SITL")
+                self.reboot_sitl() # that'll learn it
             passed = False
 
         if self._mavproxy is not None:
@@ -6748,7 +6795,7 @@ Also, ignores heartbeats not from our target system'''
 
         # need to wait for a heartbeat to arrive as then mavutil will
         # select the correct set of messages for us to receive in
-        # self.mav.messages.  You can actually recieve messages with
+        # self.mav.messages.  You can actually receive messages with
         # recv_match and those will not be in self.mav.messages until
         # you do this!
         self.wait_heartbeat()
@@ -6823,11 +6870,7 @@ Also, ignores heartbeats not from our target system'''
             self.mav.mav.send(items[m.seq])
             remaining_to_send.discard(m.seq)
             sent.add(m.seq)
-        m = self.mav.recv_match(type='MISSION_ACK',
-                                blocking=True,
-                                timeout=1)
-        if m is None:
-            raise NotAchievedException("Did not receive MISSION_ACK")
+        m = self.assert_receive_message('MISSION_ACK', timeout=1)
         if m.mission_type != mission_type:
             raise NotAchievedException("Mission ack not of expected mission type")
         if m.type != mavutil.mavlink.MAV_MISSION_ACCEPTED:
@@ -6943,13 +6986,7 @@ Also, ignores heartbeats not from our target system'''
         '''returns distance to waypoint navigation target in metres'''
         m = self.mav.messages.get("NAV_CONTROLLER_OUTPUT", None)
         if m is None or not use_cached_nav_controller_output:
-            m = self.mav.recv_match(
-                type='NAV_CONTROLLER_OUTPUT',
-                blocking=True,
-                timeout=10,
-            )
-            if m is None:
-                raise NotAchievedException("Did not get NAV_CONTROLLER_OUTPUT")
+            m = self.assert_receive_message('NAV_CONTROLLER_OUTPUT', timeout=10)
         return m.wp_dist
 
     def distance_to_home(self, use_cached_home=False):
@@ -7800,7 +7837,7 @@ Also, ignores heartbeats not from our target system'''
             self.wait_ready_to_arm(check_prearm_bit=False)
             mavproxy.send('arm throttle\n')
             mavproxy.expect('PreArm: Logging failed')
-            mavproxy.send("module load dataflash_logger\n")
+            self.mavproxy_load_module(mavproxy, 'dataflash_logger')
             mavproxy.send("dataflash_logger set verbose 1\n")
             mavproxy.expect('logging started')
             mavproxy.send("dataflash_logger set verbose 0\n")
@@ -7831,8 +7868,25 @@ Also, ignores heartbeats not from our target system'''
             self.disarm_vehicle()
             ex = e
         self.context_pop()
-        mavproxy.send("module unload dataflash_logger\n")
-        mavproxy.expect("Unloaded module dataflash_logger")
+        self.mavproxy_unload_module(mavproxy, 'dataflash_logger')
+
+        # the following things won't work - but they shouldn't die either:
+        self.mavproxy_load_module(mavproxy, 'log')
+
+        self.progress("Try log list")
+        mavproxy.send("log list\n")
+        mavproxy.expect("No logs")
+
+        self.progress("Try log erase")
+        mavproxy.send("log erase\n")
+        # no response to this...
+
+        self.progress("Try log download")
+        mavproxy.send("log download 1\n")
+        # no response to this...
+
+        self.mavproxy_unload_module(mavproxy, 'log')
+
         self.stop_mavproxy(mavproxy)
         self.reboot_sitl()
         if ex is not None:
@@ -8529,10 +8583,8 @@ Also, ignores heartbeats not from our target system'''
     def test_request_message(self, timeout=60):
         rate = round(self.get_message_rate("CAMERA_FEEDBACK", 10))
         if rate != 0:
-            raise PreconditionFailedException("Receving camera feedback")
-        m = self.poll_message("CAMERA_FEEDBACK")
-        if m is None:
-            raise NotAchievedException("Requested CAMERA_FEEDBACK did not arrive")
+            raise PreconditionFailedException("Receiving camera feedback")
+        self.poll_message("CAMERA_FEEDBACK")
 
     def clear_mission(self, mission_type, target_system=1, target_component=1):
         '''clear mision_type from autopilot.  Note that this does NOT actually
@@ -8552,11 +8604,7 @@ Also, ignores heartbeats not from our target system'''
                                         target_component,
                                         0,
                                         mission_type)
-        m = self.mav.recv_match(type='MISSION_ACK',
-                                blocking=True,
-                                timeout=5)
-        if m is None:
-            raise NotAchievedException("Expected ACK for clearing mission")
+        m = self.assert_receive_message('MISSION_ACK', timeout=5)
         if m.target_system != self.mav.mav.srcSystem:
             raise NotAchievedException("ACK not targetted at correct system want=%u got=%u" %
                                        (self.mav.mav.srcSystem, m.target_system))
@@ -9746,9 +9794,7 @@ switch value'''
         self.assert_not_receiving_message('PID_TUNING', timeout=5)
         self.set_parameter("GCS_PID_MASK", 1)
         self.progress("making sure we are now getting PID_TUNING messages")
-        m = self.mav.recv_match(type='PID_TUNING', blocking=True, timeout=5)
-        if m is None:
-            raise PreconditionFailedException("Did not start to get PID_TUNING message")
+        self.assert_receive_message('PID_TUNING', timeout=5)
 
     def sample_mission_filename(self):
         return "flaps.txt"
@@ -9930,7 +9976,7 @@ switch value'''
             self.drain_mav()
 
             self.progress("Checking results")
-            accuracy_pct = 0.2
+            accuracy_pct = 0.5
             for (ins_prefix, sim_prefix, pre_value, post_value) in param_map:
                 for axis in axes:
                     pname = ins_prefix+"_"+axis
@@ -10053,10 +10099,7 @@ switch value'''
             raise NotAchievedException("Received BUTTON_CHANGE event")
         mask = 1 << pin
         self.set_parameter("SIM_PIN_MASK", mask)
-        m = self.mav.recv_match(type='BUTTON_CHANGE', blocking=True, timeout=1)
-        if m is None:
-            raise NotAchievedException("Did not receive BUTTON_CHANGE event")
-        self.progress("### m: %s" % str(m))
+        m = self.assert_receive_message('BUTTON_CHANGE', timeout=1, verbose=True)
         if not (m.state & mask):
             raise NotAchievedException("Bit not set in mask (got=%u want=%u)" % (m.state, mask))
         m2 = self.mav.recv_match(type='BUTTON_CHANGE', blocking=True, timeout=10)
@@ -11010,7 +11053,7 @@ switch value'''
         # ok done, stop the engine
         if self.is_plane():
             self.zero_throttle()
-            if not self.disarm_vehicle():
+            if not self.disarm_vehicle(force=True):
                 raise NotAchievedException("Failed to DISARM")
 
     def test_frsky_d(self):
@@ -11021,9 +11064,7 @@ switch value'''
         frsky = FRSkyD(("127.0.0.1", 6735))
         self.wait_ready_to_arm()
         self.drain_mav_unparsed()
-        m = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True, timeout=1)
-        if m is None:
-            raise NotAchievedException("Did not receive GLOBAL_POSITION_INT")
+        m = self.assert_receive_message('GLOBAL_POSITION_INT', timeout=1)
         gpi_abs_alt = int((m.alt+500) / 1000) # mm -> m
 
         # grab a battery-remaining percentage
@@ -11036,9 +11077,7 @@ switch value'''
                      0,
                      0,
                      0)
-        m = self.mav.recv_match(type='BATTERY_STATUS', blocking=True, timeout=1)
-        if m is None:
-            raise NotAchievedException("Did not receive BATTERY_STATUS")
+        m = self.assert_receive_message('BATTERY_STATUS', timeout=1)
         want_battery_remaining_pct = m.battery_remaining
 
         tstart = self.get_sim_time_cached()
@@ -11148,10 +11187,6 @@ switch value'''
         ltm = LTM(("127.0.0.1", 6735))
         self.wait_ready_to_arm()
         self.drain_mav_unparsed()
-        m = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True, timeout=1)
-        if m is None:
-            raise NotAchievedException("Did not receive GLOBAL_POSITION_INT")
-        # gpi_abs_alt = int(m.alt / 1000) # mm -> m
 
         wants = {
             "g": self.test_ltm_g,
@@ -11194,9 +11229,7 @@ switch value'''
         devo = DEVO(("127.0.0.1", 6735))
         self.wait_ready_to_arm()
         self.drain_mav_unparsed()
-        m = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True, timeout=1)
-        if m is None:
-            raise NotAchievedException("Did not receive GLOBAL_POSITION_INT")
+        m = self.assert_receive_message('GLOBAL_POSITION_INT', timeout=1)
 
         tstart = self.get_sim_time_cached()
         while True:
@@ -11474,7 +11507,7 @@ switch value'''
             mavproxy.expect(["Loaded module ftp", "module ftp already loaded"])
             mavproxy.send("ftp list\n")
             some_directory = None
-            for entry in sorted(os.listdir()):
+            for entry in sorted(os.listdir(".")):
                 if os.path.isdir(entry):
                     some_directory = entry
                     break
@@ -11678,7 +11711,7 @@ switch value'''
             defaults_filepath = [defaults_filepath]
         defaults_list = []
         for d in defaults_filepath:
-            defaults_list.append(os.path.join(testdir, d))
+            defaults_list.append(util.reltopdir(os.path.join(testdir, d)))
         return defaults_list
 
     def load_default_params_file(self, filename):

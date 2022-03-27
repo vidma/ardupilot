@@ -65,7 +65,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
     SCHED_TASK(update_GPS_10Hz,        10,    400,  33),
     SCHED_TASK(navigate,               10,    150,  36),
     SCHED_TASK(update_compass,         10,    200,  39),
-    SCHED_TASK(read_airspeed,          10,    100,  42),
+    SCHED_TASK(calc_airspeed_errors,   10,    100,  42),
     SCHED_TASK(update_alt,             10,    200,  45),
     SCHED_TASK(adjust_altitude_target, 10,    200,  48),
 #if ADVANCED_FAILSAFE == ENABLED
@@ -90,7 +90,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
     SCHED_TASK(one_second_loop,         1,    400,  90),
     SCHED_TASK(three_hz_loop,           3,     75,  93),
     SCHED_TASK(check_long_failsafe,     3,    400,  96),
-    SCHED_TASK(rpm_update,             10,    100,  99),
+    SCHED_TASK_CLASS(AP_RPM,           &plane.rpm_sensor,     update,     10, 100,  99),
 #if AP_AIRSPEED_AUTOCAL_ENABLE
     SCHED_TASK(airspeed_ratio_update,   1,    100,  102),
 #endif // AP_AIRSPEED_AUTOCAL_ENABLE
@@ -189,6 +189,10 @@ void Plane::ahrs_update()
     // update inertial_nav for quadplane
     quadplane.inertial_nav.update();
 #endif
+
+    if (should_log(MASK_LOG_VIDEO_STABILISATION)) {
+        ahrs.write_video_stabilisation();
+    }
 }
 
 /*
@@ -243,13 +247,12 @@ void Plane::update_logging2(void)
 {
     if (should_log(MASK_LOG_CTUN)) {
         Log_Write_Control_Tuning();
+        AP::ins().write_notch_log_messages();
 #if HAL_GYROFFT_ENABLED
         gyro_fft.write_log_messages();
-#else
-        write_notch_log_messages();
 #endif
     }
-    
+
     if (should_log(MASK_LOG_NTUN)) {
         Log_Write_Nav_Tuning();
         Log_Write_Guided();
@@ -393,7 +396,7 @@ void Plane::update_GPS_50Hz(void)
     gps.update();
 
     // get position from AHRS
-    have_position = ahrs.get_position(current_loc);
+    have_position = ahrs.get_location(current_loc);
     ahrs.get_relative_position_D_home(relative_altitude);
     relative_altitude *= -1.0f;
 }
@@ -735,6 +738,7 @@ bool Plane::get_target_location(Location& target_loc)
     case Mode::Number::GUIDED:
     case Mode::Number::AUTO:
     case Mode::Number::LOITER:
+    case Mode::Number::TAKEOFF:
 #if HAL_QUADPLANE_ENABLED
     case Mode::Number::QLOITER:
     case Mode::Number::QLAND:
@@ -748,6 +752,39 @@ bool Plane::get_target_location(Location& target_loc)
     }
     return false;
 }
+
+/*
+  update_target_location() works in all auto navigation modes
+ */
+bool Plane::update_target_location(const Location &old_loc, const Location &new_loc)
+{
+    if (!old_loc.same_latlon_as(next_WP_loc)) {
+        return false;
+    }
+    ftype alt_diff;
+    if (!old_loc.get_alt_distance(next_WP_loc, alt_diff) ||
+        !is_zero(alt_diff)) {
+        return false;
+    }
+    next_WP_loc = new_loc;
+    next_WP_loc.change_alt_frame(old_loc.get_alt_frame());
+
+    return true;
+}
+
+// allow for velocity matching in VTOL
+bool Plane::set_velocity_match(const Vector2f &velocity)
+{
+#if HAL_QUADPLANE_ENABLED
+    if (quadplane.in_vtol_mode() || quadplane.in_vtol_land_sequence()) {
+        quadplane.poscontrol.velocity_match = velocity;
+        quadplane.poscontrol.last_velocity_match_ms = AP_HAL::millis();
+        return true;
+    }
+#endif
+    return false;
+}
+
 #endif // AP_SCRIPTING_ENABLED
 
 #if OSD_ENABLED

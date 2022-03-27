@@ -111,6 +111,10 @@ void Copter::init_ardupilot()
     AP::compass().set_log_bit(MASK_LOG_COMPASS);
     AP::compass().init();
 
+#if AP_AIRSPEED_ENABLED
+    airspeed.set_log_bit(MASK_LOG_IMU);
+#endif
+
 #if AC_OAPATHPLANNER_ENABLED == ENABLED
     g2.oa.init();
 #endif
@@ -149,8 +153,10 @@ void Copter::init_ardupilot()
     // initialise rangefinder
     init_rangefinder();
 
+#if HAL_PROXIMITY_ENABLED
     // init proximity sensor
-    init_proximity();
+    g2.proximity.init();
+#endif
 
 #if BEACON_ENABLED == ENABLED
     // init beacons used for non-gps position estimation
