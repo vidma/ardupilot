@@ -70,7 +70,9 @@ PA2 TIM2_CH3 TIM2 PWM(4) GPIO(53)
 # was: PA0 LED_EXT1 OUTPUT GPIO(30)
 # fake PWMs
 # fixme: could it be wrong assignement, not pa0?
-PA0 TIM2_CH1 TIM2 PWM(5) GPIO(30)
+# PA0 TIM2_CH1 TIM2 PWM(5) GPIO(30)
+# as in original betaflight cfg 
+PA0 TIM5_CH1 TIM5 PWM(5) GPIO(30)
 
 
 
