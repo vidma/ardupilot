@@ -16,13 +16,15 @@ PB3 TIM2_CH2 TIM2 PWM(7) GPIO(56)
 
 PB11 USART3_RX USART3 NODMA
 
+# fixes for MambaF405-2022B board
 SPIDEV icm42688    SPI1 DEVID2 MPU6000_CS MODE3 1*MHZ 8*MHZ
 IMU Invensensev3 SPI:icm42688 ROTATION_YAW_90
 
-#undef BARO
+# enable SPL06 baro
 BARO SPL06 I2C:0:0x76
-#define AP_BARO_BACKEND_DEFAULT_ENABLED 0
-#undef AP_BARO_BMP280_ENABLED
-#define AP_BARO_BMP280_ENABLED 0
-
 define AP_BARO_SPL06_ENABLED 1
+
+# FIXME: this BMP280 Baro comming from Mamba405US-I2C hwdef is probably not needed in MambaF405-2022B,
+# but need to make sure if it would not break MambaF405-2022A (seem SPL06 everywhere)
+# define AP_BARO_BMP280_ENABLED 0
+
