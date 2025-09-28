@@ -2,7 +2,7 @@
 
 namespace ESP32
 {
-// FIXME !!!
+class UARTDriver;
 class ConsoleFakeUartDriver;
 // class WiFiDriver;
 // class WiFiUdpDriver;

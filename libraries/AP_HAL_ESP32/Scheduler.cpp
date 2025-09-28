@@ -36,7 +36,7 @@
 #define CONFIG_FREERTOS_HZ configTICK_RATE_HZ
 #endif
 
-// //#define SCHEDULERDEBUG 1
+#define SCHEDULERDEBUG 1
 
 using namespace ESP32;
 
@@ -83,7 +83,6 @@ BaseType_t xTaskCreatePinnedToCore(
     const uint32_t usStackDepth,
     void *constpvParameters,
     UBaseType_t uxPriority,
-    // inverted params
     TaskHandle_t *constpvCreatedTask,
     const BaseType_t xCoreID) {
     BaseType_t res;
@@ -92,28 +91,13 @@ BaseType_t xTaskCreatePinnedToCore(
         return res;
     }
 #if ( configUSE_CORE_AFFINITY == 1 )
-    vTaskCoreAffinitySet(*constpvCreatedTask, xCoreID);
+    // FIXME!!!
+    // vTaskCoreAffinitySet(*constpvCreatedTask, xCoreID);
 #endif
     return res;
-}
-#endif
-
-void Scheduler::init()
-{
-
-#ifdef SCHEDDEBUG
-    printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
-#endif
-
-     hal.console->printf("%s:%d running with CONFIG_FREERTOS_HZ=%d\n", __PRETTY_FUNCTION__, __LINE__,CONFIG_FREERTOS_HZ);
-
-     // keep main tasks that need speed on CPU 0
-     // pin potentially slow stuff to CPU 1, as we have disabled the WDT on that core.
-     #define FASTCPU 0
-     #define SLOWCPU 1
-
+    // could also use:
     // RP2350/FreeRTOS:
-     // pin main thread to Core 0, and we'll also pin other heavy-tasks to core 1, like wifi-related.
+    // pin main thread to Core 0, and we'll also pin other heavy-tasks to core 1, like wifi-related.
     // BaseType_t xTaskCreateAffinitySet( TaskFunction_t pxTaskCode,
     //                                const char * const pcName,
     //                                const configSTACK_DEPTH_TYPE uxStackDepth,
@@ -132,6 +116,22 @@ void Scheduler::init()
     //     // inverted params
     //     TaskHandle_t *constpvCreatedTask,
     //     const BaseType_t xCoreID)
+}
+#endif
+
+void Scheduler::init()
+{
+
+#ifdef SCHEDDEBUG
+    printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
+#endif
+
+     hal.console->printf("%s:%d running with CONFIG_FREERTOS_HZ=%d\n", __PRETTY_FUNCTION__, __LINE__,CONFIG_FREERTOS_HZ);
+
+     // keep main tasks that need speed on CPU 0
+     // pin potentially slow stuff to CPU 1, as we have disabled the WDT on that core.
+     #define FASTCPU 0
+     #define SLOWCPU 1
 
      if (xTaskCreatePinnedToCore(_main_thread, "APM_MAIN", Scheduler::MAIN_SS, this, Scheduler::MAIN_PRIO,  &_main_task_handle, FASTCPU) != pdPASS) {
      //if (xTaskCreate(_main_thread, "APM_MAIN", Scheduler::MAIN_SS, this, Scheduler::MAIN_PRIO, &_main_task_handle) != pdPASS) {
@@ -165,20 +165,26 @@ void Scheduler::init()
      	hal.console->printf("OK created task _uart_thread on FASTCPU\n");
      }
 
-//     // we put those on the SLOW core as it mounts the sd card, and that often isn't connected.
-//     if (xTaskCreatePinnedToCore(_io_thread, "SchedulerIO:APM_IO", IO_SS, this, IO_PRIO, &_io_task_handle,SLOWCPU) != pdPASS) {
-//         hal.console->printf("FAILED to create task _io_thread on SLOWCPU\n");
-//     } else {
-//         hal.console->printf("OK created task _io_thread on SLOWCPU\n");
-//     }	 
+     // we put those on the SLOW core as it mounts the sd card, and that often isn't connected.
+     if (xTaskCreatePinnedToCore(_io_thread, "SchedulerIO:APM_IO", IO_SS, this, IO_PRIO, &_io_task_handle,SLOWCPU) != pdPASS) {
+         hal.console->printf("FAILED to create task _io_thread on SLOWCPU\n");
+     } else {
+         hal.console->printf("OK created task _io_thread on SLOWCPU\n");
+     }
 
-//     if (xTaskCreatePinnedToCore(_storage_thread, "APM_STORAGE", STORAGE_SS, this, STORAGE_PRIO, &_storage_task_handle,SLOWCPU) != pdPASS) { //no actual flash writes without this, storage kinda appears to work, but does an erase on every boot and params don't persist over reset etc.
-//         hal.console->printf("FAILED to create task _storage_thread on SLOWCPU\n");
-//     } else {
-//     	hal.console->printf("OK created task _storage_thread on SLOWCPU\n");
-//     }
+     if (xTaskCreatePinnedToCore(_storage_thread, "APM_STORAGE", STORAGE_SS, this, STORAGE_PRIO, &_storage_task_handle,SLOWCPU) != pdPASS) { //no actual flash writes without this, storage kinda appears to work, but does an erase on every boot and params don't persist over reset etc.
+         hal.console->printf("FAILED to create task _storage_thread on SLOWCPU\n");
+     } else {
+     	hal.console->printf("OK created task _storage_thread on SLOWCPU\n");
+     }
 
      //   xTaskCreatePinnedToCore(_print_profile, "APM_PROFILE", IO_SS, this, IO_PRIO, nullptr,SLOWCPU);
+
+    // FIXME: why do I need it for RP2350 but not for ESP32?
+    // Start the scheduler.
+    // otherwise it seems no tasks are started!
+    vTaskStartScheduler();
+    for( ;; );
 }
 
 template <typename T>
@@ -201,9 +207,9 @@ void IRAM_ATTR Scheduler::thread_create_trampoline(void *ctx)
      vTaskDelete(NULL);
 }
 
-// /*
-//   create a new thread
-// */
+/*
+  create a new thread
+*/
 bool Scheduler::thread_create(AP_HAL::MemberProc proc, const char *name, uint32_t requested_stack_size, priority_base base, int8_t priority)
 {
 #ifdef SCHEDDEBUG
@@ -274,7 +280,7 @@ void IRAM_ATTR Scheduler::delay_microseconds(uint16_t us)
 {
      if (in_main_thread() && us < 100) {
          //esp_rom_delay_us(us);
-         sleep_us(1000);
+         sleep_us(us);
      } else { // Minimum delay for FreeRTOS is 1ms
          uint32_t tick = portTICK_PERIOD_MS * 1000;
 
@@ -442,11 +448,12 @@ void IRAM_ATTR Scheduler::_rcin_thread(void *arg)
      while (!_initialized) {
          sched->delay_microseconds(20000);
      }
-     // hal.rcin->init();
-     // while (true) {
-     //     sched->delay_microseconds(1000);
-     //     // FIXME: RCInput is not implemented yet!!! - ((RCInput *)hal.rcin)->_timer_tick();
-     // }
+     hal.rcin->init();
+     while (true) {
+         sched->delay_microseconds(1000);
+         // FIXME: RCInput is not implemented yet!!! -
+         //((RCInput *)hal.rcin)->_timer_tick();
+     }
 }
 
 void IRAM_ATTR Scheduler::_run_io(void)
@@ -553,14 +560,13 @@ void IRAM_ATTR Scheduler::_uart_thread(void *arg)
 #ifdef SCHEDDEBUG
     printf("%s:%d initialised\n", __PRETTY_FUNCTION__, __LINE__);
 #endif
-    // FIXME?
-//     while (true) {
-//         sched->delay_microseconds(1000);
-//         for (uint8_t i=0; i<hal.num_serial; i++) {
-//             hal.serial(i)->_timer_tick();
-//         }
-//         hal.console->_timer_tick();
-//     }
+     while (true) {
+         sched->delay_microseconds(1000);
+         for (uint8_t i=0; i<hal.num_serial; i++) {
+             hal.serial(i)->_timer_tick();
+         }
+         hal.console->_timer_tick();
+     }
 }
 
 
@@ -576,17 +582,17 @@ uint16_t IRAM_ATTR Scheduler::get_loop_rate_hz(void)
 // once every 60 seconds, print some stats...
 void Scheduler::print_stats(void)
 {
-// FIXME: not implemented yet!
-//     static int64_t last_run = 0;
-//     if (AP_HAL::millis64() - last_run > 60000) {
-//         char buffer[1024];
-//         vTaskGetRunTimeStats(buffer);
-//         printf("\n\n%s\n", buffer);
-//         heap_caps_print_heap_info(0);
-//         last_run = AP_HAL::millis64();
-//     }
-
-//     // printf("loop_rate_hz: %d",get_loop_rate_hz());
+     static int64_t last_run = 0;
+     if (AP_HAL::millis64() - last_run > 60000) {
+         // FIXME: not implemented yet  FreeRTOS config need to be adjusted!
+         // char buffer[1024];
+         // vTaskGetRunTimeStats(buffer);
+         // printf("\n\n%s\n", buffer);
+         // FIXME: heap_caps_print_heap_info(0);
+         last_run = AP_HAL::millis64();
+     }
+    // FIXME: hide?
+    printf("loop_rate_hz: %d",get_loop_rate_hz());
 }
 
 // Run every 10s
@@ -606,6 +612,7 @@ void IRAM_ATTR Scheduler::_main_thread(void *arg)
 {
 #ifdef SCHEDDEBUG
     printf("%s:%d start\n", __PRETTY_FUNCTION__, __LINE__);
+    hal.console->printf("_main_thread starting...\n");
 #endif
      Scheduler *sched = (Scheduler *)arg;
 
@@ -625,6 +632,7 @@ void IRAM_ATTR Scheduler::_main_thread(void *arg)
 
 #ifdef SCHEDDEBUG
     printf("%s:%d initialised\n", __PRETTY_FUNCTION__, __LINE__);
+    hal.console->printf("_main_thread initialized...\n");
 #endif
     while (true) {
         sched->callbacks->loop();
@@ -632,6 +640,7 @@ void IRAM_ATTR Scheduler::_main_thread(void *arg)
 
         // run stats periodically
 #ifdef SCHEDDEBUG
+        hal.console->printf("_main_thread periodic...\n");
         sched->print_stats();
 #endif
         sched->print_main_loop_rate();

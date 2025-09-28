@@ -48,7 +48,8 @@
 
 // FIXME
 // static ESP32::UARTDriver cons(0);
-static ESP32::ConsoleFakeUartDriver cons;
+static ESP32::UARTDriver cons(0);
+//static ESP32::ConsoleFakeUartDriver cons;
 //static Empty::UARTDriver cons;
 
 #ifdef HAL_ESP32_WIFI
@@ -63,9 +64,10 @@ static Empty::UARTDriver serial1Driver;
 static Empty::UARTDriver serial1Driver;
 #endif
 
-//static ESP32::UARTDriver serial2Driver(2);
+// uart1 in pico terms
+static ESP32::UARTDriver serial2Driver(1);
 //static ESP32::UARTDriver serial3Driver(1);
-static Empty::UARTDriver serial2Driver;
+//static Empty::UARTDriver serial2Driver;
 static Empty::UARTDriver serial3Driver;
 
 
@@ -170,12 +172,12 @@ void HAL_ESP32::run(int argc, char * const argv[], Callbacks* callbacks) const
     ((ESP32::Scheduler *)hal.scheduler)->set_callbacks(callbacks);
     hal.scheduler->init();
     // FIXME: hal.scheduler->init() - this should block or not?
-    unsigned int i=0;
-    while (true) {
-        i++;
-        printf("Hello, world %d!\n", i);
-        sleep_ms(300);
-    }
+    // unsigned int i=0;
+    // while (true) {
+    //     i++;
+    //     printf("Hello, world %d!\n", i);
+    //     sleep_ms(300);
+    // }
 }
 
 void AP_HAL::init()
