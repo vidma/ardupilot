@@ -141,11 +141,11 @@ target_compile_definitions(${elf_file} PUBLIC
   AP_SCRIPTING_ENABLED=0
 )
 
-# enable stdout (printf) via USB serial
-pico_enable_stdio_usb(${elf_file} 1)
+# enable stdout (printf) via USB serial - do not work?
+pico_enable_stdio_usb(${elf_file} 0)
 
-# enable stdout (printf) via UART
-pico_enable_stdio_uart(${elf_file}  0)
+# enable stdout (printf) via UART - works
+pico_enable_stdio_uart(${elf_file}  1)
 
 pico_add_extra_outputs(${elf_file})
 

@@ -15,6 +15,8 @@
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_HAL_Empty/AP_HAL_Empty_Private.h>
+#include <stdio.h>
+#include "pico/stdlib.h"
 
 #include "HAL_ESP32_Class.h"
 #include "Scheduler.h"
@@ -23,6 +25,7 @@
 
 // FIXME!!!
 #include "UARTDriver.h"
+#include "SimpleConsoleDriver.h"
 
 
 // #include "WiFiDriver.h"
@@ -35,13 +38,18 @@
 //#include "AnalogIn.h"
 #include "Util.h"
 
+
+
 #if AP_SIM_ENABLED
 #include <AP_HAL/SIMState.h>
 #endif
 
+
+
 // FIXME
 // static ESP32::UARTDriver cons(0);
-static Empty::UARTDriver cons;
+static ESP32::UARTDriver cons;
+//static Empty::UARTDriver cons;
 
 #ifdef HAL_ESP32_WIFI
 #if HAL_ESP32_WIFI == 1
@@ -152,8 +160,22 @@ HAL_ESP32::HAL_ESP32() :
 
 void HAL_ESP32::run(int argc, char * const argv[], Callbacks* callbacks) const
 {
+    stdio_init_all();
+    printf("Hello, world!\n");
+    sleep_ms(1000);
+    printf("Hello, world again 1!\n");
+    sleep_us(1000);
+    printf("Hello, world again 2!\n");
+    // this is called from implicit main() function, from the entrypoint
     ((ESP32::Scheduler *)hal.scheduler)->set_callbacks(callbacks);
     hal.scheduler->init();
+    // FIXME: hal.scheduler->init() - this should block or not?
+    unsigned int i=0;
+    while (true) {
+        i++;
+        printf("Hello, world %d!\n", i);
+        sleep_ms(300);
+    }
 }
 
 void AP_HAL::init()
