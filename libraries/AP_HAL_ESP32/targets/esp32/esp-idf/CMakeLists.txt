@@ -145,8 +145,7 @@ target_compile_definitions(${elf_file} PUBLIC
 pico_enable_stdio_usb(${elf_file} 0)
 
 # enable stdout (printf) via UART - works
-# FIXME - without this nothing is printed on UART, am I missing some manual uart init steps?
-pico_enable_stdio_uart(${elf_file}  0)
+pico_enable_stdio_uart(${elf_file}  1)
 
 pico_add_extra_outputs(${elf_file})
 

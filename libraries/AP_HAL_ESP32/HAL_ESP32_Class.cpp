@@ -162,7 +162,7 @@ HAL_ESP32::HAL_ESP32() :
 
 void HAL_ESP32::run(int argc, char * const argv[], Callbacks* callbacks) const
 {
-    //stdio_init_all();
+    stdio_init_all();
     printf("Hello, world!\n");
     sleep_ms(1000);
     printf("Hello, world again 1!\n");
