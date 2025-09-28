@@ -281,7 +281,8 @@ class Board:
 
             '-Wall',
             '-Wextra',
-            '-Werror=format',
+            #'-Werror=format',
+            '-Wno-error=format',
             '-Wpointer-arith',
             '-Wcast-align',
             '-Wno-missing-field-initializers',
@@ -401,7 +402,7 @@ class Board:
             '-Werror=format-security',
             '-Werror=format-extra-args',
             '-Werror=enum-compare',
-            '-Werror=format',
+            #'-Werror=format',
             '-Werror=array-bounds',
             '-Werror=uninitialized',
             '-Werror=init-self',

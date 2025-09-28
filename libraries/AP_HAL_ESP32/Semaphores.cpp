@@ -106,7 +106,8 @@ void BinarySemaphore::signal_ISR()
 {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     xSemaphoreGiveFromISR(_sem, &xHigherPriorityTaskWoken);
-    // FIXME!!! portYIELD_FROM_ISR_ARG(xHigherPriorityTaskWoken);
+    // ESP32: portYIELD_FROM_ISR_ARG(xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);   // <-- portable FreeRTOS way
 }
 
 BinarySemaphore::~BinarySemaphore(void)

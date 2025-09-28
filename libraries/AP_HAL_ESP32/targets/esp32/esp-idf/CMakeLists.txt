@@ -9,9 +9,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(PICO_SDK_FETCH_FROM_GIT TRUE)
 set(PICO_PLATFORM "rp2350")
 
-#set(PICO_BOARD "pimoroni_tiny2350")
-set(PICO_BOARD "pimoroni_pico_plus2_rp2350")
-#set(PICO_BOARD "pico2")
+# set(PICO_BOARD "pimoroni_tiny2350")
+# set(PICO_BOARD "pimoroni_pico_plus2_rp2350")
+# set(PICO_BOARD "pico2")
+
+# For https://madflight.com/Board-FC1/ use solderparty_rp2350_stamp_xl
+set(PICO_BOARD "solderparty_rp2350_stamp_xl")
 
 # set(PICO_CXX_ENABLE_NEW_DELETE 0)  # prevents new_delete.cpp
 set(PICO_CXX_ENABLE_EXCEPTIONS 0)

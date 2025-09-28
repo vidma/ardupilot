@@ -98,7 +98,7 @@
 // uncommenting one or more of these will give more console debug in certain areas.. ... 
 // ...however all teh extra printf's use a lot of stack, so best to limit yourself to only uncommenting one at a time
 //#define STORAGEDEBUG 1
-//#define SCHEDDEBUG 1
+#define SCHEDDEBUG 1
 //#define FSDEBUG 1
 //#define BUSDEBUG 1 //ok
 //#define WIFIDEBUG 1 //uses a lot?
