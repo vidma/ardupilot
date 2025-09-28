@@ -25,7 +25,7 @@
 
 // FIXME!!!
 #include "UARTDriver.h"
-#include "SimpleConsoleDriver.h"
+#include "ConsoleFakeUartDriver.h"
 
 
 // #include "WiFiDriver.h"
@@ -48,7 +48,7 @@
 
 // FIXME
 // static ESP32::UARTDriver cons(0);
-static ESP32::UARTDriver cons;
+static ESP32::ConsoleFakeUartDriver cons;
 //static Empty::UARTDriver cons;
 
 #ifdef HAL_ESP32_WIFI
