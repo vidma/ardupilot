@@ -30,6 +30,7 @@
 
 #include <stdio.h>
 #include "pico/stdlib.h"
+#include <hardware/watchdog.h>
 
 
 #ifndef CONFIG_FREERTOS_HZ
@@ -61,19 +62,9 @@ Scheduler::~Scheduler()
 
 void Scheduler::wdt_init(uint32_t timeout, uint32_t core_mask)
 {
-     // esp_task_wdt_config_t config = {
-     //     .timeout_ms = timeout,
-     //     .idle_core_mask = core_mask,
-     //     .trigger_panic = true
-     // };
-     //
-     // if ( ESP_OK != esp_task_wdt_init(&config) ) {
-     //     printf("esp_task_wdt_init() failed\n");
-     // }
-     //
-     // if (ESP_OK != esp_task_wdt_add(NULL)) {
-     //     printf("esp_task_wdt_add(NULL) failed");
-     // }
+    // Enable the watchdog, requiring the watchdog to be updated every 100ms or the chip will reboot
+    // second arg is pause on debug which means the watchdog will pause when stepping through code
+    watchdog_enable(timeout, 1);
 }
 
 #ifndef xTaskCreatePinnedToCore
@@ -645,10 +636,9 @@ void IRAM_ATTR Scheduler::_main_thread(void *arg)
 #endif
         sched->print_main_loop_rate();
 
-        // FIXME !!!! missing watchdogs?
-        // if (ESP_OK != esp_task_wdt_reset()) {
-        //     printf("esp_task_wdt_reset() failed\n");
-        // };
+        // mark task is still "OK"
+        watchdog_update();
+
     }
 }
 

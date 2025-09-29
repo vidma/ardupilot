@@ -36,6 +36,9 @@
 // #include "esp_heap_caps.h"
 #include <AP_Common/ExpandingString.h>
 
+#include "FreeRTOS.h"
+#include <hardware/watchdog.h>
+//#include <hardware/>
 #include "pico/time.h"
 
 // #include "esp_mac.h"
@@ -217,8 +220,7 @@ bool Util::get_system_id_unformatted(uint8_t buf[], uint8_t &len)
 // return true if the reason for the reboot was a watchdog reset
 bool Util::was_watchdog_reset() const
 {
-    // FIXME !!!
-    return false;
+    return watchdog_enable_caused_reboot();
     // esp_reset_reason_t reason = esp_reset_reason();
 
     // return reason == ESP_RST_PANIC
