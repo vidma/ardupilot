@@ -54,7 +54,8 @@ using namespace ESP32;
 uint32_t Util::available_memory(void)
 {
     // FIXME - return heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT);
-    return 10000;
+    //return 10000;
+    return xPortGetFreeHeapSize();
 
 }
 
