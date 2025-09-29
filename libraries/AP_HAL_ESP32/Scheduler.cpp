@@ -83,7 +83,7 @@ BaseType_t xTaskCreatePinnedToCore(
     }
 #if ( configUSE_CORE_AFFINITY == 1 )
     // FIXME!!!
-    // vTaskCoreAffinitySet(*constpvCreatedTask, xCoreID);
+    vTaskCoreAffinitySet(*constpvCreatedTask, xCoreID);
 #endif
     return res;
     // could also use:
