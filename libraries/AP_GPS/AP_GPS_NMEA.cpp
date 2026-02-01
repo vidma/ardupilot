@@ -1190,6 +1190,21 @@ void AP_GPS_NMEA::send_config(void)
     _expect_agrica = (type == AP_GPS::GPS_TYPE_UNICORE_NMEA ||
                       type == AP_GPS::GPS_TYPE_UNICORE_MOVINGBASE_NMEA);
     _expect_pqtm = (type == AP_GPS::GPS_TYPE_QUECTEL_NMEA);
+
+    #ifdef HAL_GPIO_PPS
+        // FIXME: is there a better place to do this?
+
+        // FIXME: should it be rising or falling edge? Make configurable from ardupilot side?
+        // Quectelspecific - PQTMCFGPPS on quectel_lg290p03lgx80p03_gnss_protocol_specification_v1-1.pdf 
+        // $PQTMCFGPPS,W,<Index>,<Enable>,<Duration>,<Mode>,<Polarity>,<Reserved>*<Checksum><CR><LF>
+        // Pulse polarity. 0 = Low 1 = High
+        // depend on Polarity: 
+        // POSITIVE: PPS rising edge is effective.
+        // NEGATIVE: PPS falling edge is valid
+        // INTERRUPT_RISING or INTERRUPT_FALLING
+        hal.gpio->attach_interrupt(HAL_GPIO_PPS, FUNCTOR_BIND_MEMBER(&AP_GPS_NMEA::pps_interrupt, void, uint8_t, bool, uint32_t), AP_HAL::GPIO::INTERRUPT_RISING);
+    #endif // HAL_GPIO_PPS
+
     if (gps._auto_config == AP_GPS::GPS_AUTO_CONFIG_DISABLE) {
         // not doing auto-config
         return;
@@ -1376,6 +1391,15 @@ void AP_GPS_NMEA::Write_AP_Logger_Log_Startup_messages() const
     }
 #endif // AP_GPS_NMEA_QUECTEL_ENABLED
 }
-#endif
+#endif // HAL_LOGGING_ENABLED
+
+
+#ifdef HAL_GPIO_PPS
+void
+AP_GPS_NMEA::pps_interrupt(uint8_t pin, bool high, uint32_t timestamp_us)
+{
+    _last_pps_time_us = AP_HAL::micros64();
+}
+#endif // HAL_GPIO_PPS
 
 #endif // AP_GPS_NMEA_ENABLED
