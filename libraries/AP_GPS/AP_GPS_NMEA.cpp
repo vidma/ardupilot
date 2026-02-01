@@ -1094,6 +1094,54 @@ void AP_GPS_NMEA::parse_pqtmtar_field(uint16_t term_number, const char *term)
         break;
     case 12:  // 12 - <UsedSV>	Satellites Number used for heading solution
         ph.used_sv = atoi(term);
+        // ratelimit output
+        const uint32_t now = AP_HAL::millis();
+        bool log_pqmtar = ph.quality >= 4; // only log when we have RTK fix
+        if ((now - _last_pqmtar_log_ms > 1000) && log_pqmtar) {
+            _last_pqmtar_log_ms = now;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO,
+                    "H q:%u b:%.1f p:%.1f r:%.1f h:%.1f",
+
+                    ph.quality,
+                    ph.baseline_length,
+                    ph.pitch,
+                    ph.roll,
+                    ph.heading
+                    );
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO,
+                    "Q acc:%.1f %.1f %.1f",
+                    
+                    ph.pitch_acc,
+                    ph.roll_acc,
+                    ph.heading_acc);
+        }
+        // FIXME: should be quality=4 only
+        bool accept_heading_quality = ph.quality == 4; // only accept when we have RTK fix
+        if (accept_heading_quality) {
+            // FIXME: should use this only when quality = 4
+            // have a valid RTK fixed heading solution
+
+            // FIXME: some shared logic with UNIHEADINGA parsing...
+            state.relPosHeading = ph.heading;
+            state.relPosLength = ph.baseline_length;
+            const float alt_diff = ph.baseline_length * tanf(radians(-ph.pitch));
+            state.relPosD = alt_diff;
+            state.relposheading_ts = now;
+            if (calculate_moving_base_yaw(ph.heading, ph.baseline_length, alt_diff)) {
+                state.have_gps_yaw_accuracy = true;
+                state.gps_yaw_accuracy = ph.heading_acc;
+                _last_yaw_ms = now;
+            }
+            state.gps_yaw_configured = true;
+            state.have_gps_yaw_accuracy = true;
+            state.gps_yaw_accuracy = ph.heading_acc;
+        }
+        if (!(accept_heading_quality) || _last_yaw_ms + 500 < now) {
+            // lost RTK fix
+            state.have_gps_yaw = false;
+            state.have_gps_yaw_accuracy = false;
+        }
+
         #if HAL_LOGGING_ENABLED
         // FIXME: write to log
         // ph.time_ms,
@@ -1107,33 +1155,34 @@ void AP_GPS_NMEA::parse_pqtmtar_field(uint16_t term_number, const char *term)
         // ph.heading_acc,
         // ph.used_sv
 
-        AP::logger().Write_MessageF("head %u q:%u b:%.1f p:%.1f r:%.1f h:%.1f",
-                                    state.instance+1,
-                                    ph.time_ms,
-                                    ph.quality,
-                                    ph.baseline_length,
-                                    ph.pitch,
-                                    ph.roll,
-                                    ph.heading
 
-                                    // ph.pitch_acc,
-                                    // ph.roll_acc,
-                                    // ph.heading_acc,
-                                    // ph.used_sv
-        );
+        // AP::logger().Write_MessageF("head %u q:%u b:%.1f p:%.1f r:%.1f h:%.1f",
+        //                             state.instance+1,
+        //                             ph.time_ms,
+        //                             ph.quality,
+        //                             ph.baseline_length,
+        //                             ph.pitch,
+        //                             ph.roll,
+        //                             ph.heading
 
-        AP::logger().Write_MessageF("head acc:%.1f %.1f %.1f sv:%u",
-                                    state.instance+1,
-                                    //ph.time_ms,
-                                    // ph.quality,
-                                    // ph.baseline_length,
-                                    // ph.pitch,
-                                    // ph.roll,
-                                    // ph.heading,
-                                    ph.pitch_acc,
-                                    ph.roll_acc,
-                                    ph.heading_acc,
-                                    ph.used_sv);
+        //                             // ph.pitch_acc,
+        //                             // ph.roll_acc,
+        //                             // ph.heading_acc,
+        //                             // ph.used_sv
+        // );
+
+        // AP::logger().Write_MessageF("head acc:%.1f %.1f %.1f sv:%u",
+        //                             state.instance+1,
+        //                             //ph.time_ms,
+        //                             // ph.quality,
+        //                             // ph.baseline_length,
+        //                             // ph.pitch,
+        //                             // ph.roll,
+        //                             // ph.heading,
+        //                             ph.pitch_acc,
+        //                             ph.roll_acc,
+        //                             ph.heading_acc,
+        //                             ph.used_sv);
         #endif // HAL_LOGGING_ENABLED
         break;
     }
