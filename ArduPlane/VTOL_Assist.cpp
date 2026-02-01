@@ -92,7 +92,7 @@ bool VTOL_Assist::should_assist(float aspeed, bool have_airspeed)
     // assistance due to Q_ASSIST_SPEED
     // if option bit is enabled only allow assist with real airspeed sensor
     speed_assist = (have_airspeed && aspeed < speed) && 
-       (!quadplane.option_is_set(QuadPlane::OPTION::DISABLE_SYNTHETIC_AIRSPEED_ASSIST) || plane.ahrs.using_airspeed_sensor());
+       (!quadplane.option_is_set(QuadPlane::Option::DISABLE_SYNTHETIC_AIRSPEED_ASSIST) || plane.ahrs.using_airspeed_sensor());
 
     const uint32_t now_ms = AP_HAL::millis();
     const uint32_t tigger_delay_ms = delay * 1000;
@@ -106,7 +106,7 @@ bool VTOL_Assist::should_assist(float aspeed, bool have_airspeed)
         alt_error.reset();
 
     } else {
-        const float height_above_ground = plane.relative_ground_altitude(plane.g.rangefinder_landing);
+        const float height_above_ground = plane.relative_ground_altitude(RangeFinderUse::ASSIST);
         if (alt_error.update(height_above_ground < alt, now_ms, tigger_delay_ms, clear_delay_ms)) {
             gcs().send_text(MAV_SEVERITY_WARNING, "Alt assist %.1fm", height_above_ground);
         }
@@ -158,9 +158,9 @@ bool VTOL_Assist::check_VTOL_recovery(void)
         return false;
     }
 
-    // see if the attitude is outside twice the Q_ANGLE_MAX
+    // see if the attitude is outside twice the Q_A_ANGLE_MAX
     const auto &ahrs = plane.ahrs;
-    const int16_t angle_max_cd = quadplane.aparm.angle_max;
+    const float angle_max_cd = quadplane.attitude_control->lean_angle_max_cd();
     const float abs_angle_cd = fabsf(Vector2f{float(ahrs.roll_sensor), float(ahrs.pitch_sensor)}.length());
 
     if (abs_angle_cd > 2*angle_max_cd) {
@@ -169,12 +169,12 @@ bool VTOL_Assist::check_VTOL_recovery(void)
     }
 
     if (quadplane.force_fw_control_recovery) {
-        // stop fixed wing recovery if inside Q_ANGLE_MAX
+        // stop fixed wing recovery if inside Q_A_ANGLE_MAX
         if (abs_angle_cd <= angle_max_cd) {
             quadplane.force_fw_control_recovery = false;
             quadplane.attitude_control->reset_target_and_rate(false);
 
-            if (ahrs.groundspeed() > quadplane.wp_nav->get_default_speed_NE_cms()*0.01) {
+            if (ahrs.groundspeed() > quadplane.wp_nav->get_default_speed_NE_ms()) {
                 /* if moving at high speed also reset position
                    controller and height controller
 
@@ -182,8 +182,8 @@ bool VTOL_Assist::check_VTOL_recovery(void)
                    controller may limit pitch after a strong
                    acceleration event
                 */
-                quadplane.pos_control->init_U_controller();
-                quadplane.pos_control->init_NE_controller();
+                quadplane.pos_control->D_init_controller();
+                quadplane.pos_control->NE_init_controller();
             }
         }
     }

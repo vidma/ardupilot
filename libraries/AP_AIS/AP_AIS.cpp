@@ -274,7 +274,7 @@ void AP_AIS::send(mavlink_channel_t chan)
 }
 
 #if AP_OADATABASE_ENABLED
-// Send a AIS vessel to the object avoidance database if its postion is valid
+// Send a AIS vessel to the object avoidance database if its position is valid
 void AP_AIS::send_to_object_avoidance_database(const struct ais_vehicle_t &vessel)
 {
     // No point if database is not enabled
@@ -378,7 +378,7 @@ void AP_AIS::buffer_shift(uint8_t i)
 // Functions related to the vessel list
 
 // find vessel index in existing list, if not then return new index if possible, returns true if index is valid
-bool AP_AIS::get_vessel_index(uint32_t mmsi, uint16_t &index, uint32_t lat, uint32_t lon)
+bool AP_AIS::get_vessel_index(uint32_t mmsi, uint16_t &index, int32_t lat, int32_t lon)
 {
     const uint16_t list_size = _list.max_items();
 

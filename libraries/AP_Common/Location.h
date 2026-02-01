@@ -30,8 +30,12 @@ public:
     /// constructors
     Location() { zero(); }
     Location(int32_t latitude, int32_t longitude, int32_t alt_in_cm, AltFrame frame);
-    Location(const Vector3f &ekf_offset_neu, AltFrame frame);
-    Location(const Vector3d &ekf_offset_neu, AltFrame frame);
+    Location(const Vector3f &ekf_offset_neu_cm, AltFrame frame);
+    Location(const Vector3d &ekf_offset_neu_cm, AltFrame frame);
+
+    // named constructors
+    static Location from_ekf_offset_NED_m(const Vector3f& ekf_offset_ned_m, AltFrame frame);
+    static Location from_ekf_offset_NED_m(const Vector3d& ekf_offset_ned_m, AltFrame frame);
 
     // set altitude
     void set_alt_cm(int32_t alt_cm, AltFrame frame);
@@ -88,6 +92,8 @@ public:
     bool get_vector_xy_from_origin_NE_m(T &vec_ne) const;
     template<typename T>
     bool get_vector_from_origin_NEU_m(T &vec_neu) const;
+    template<typename T>
+    bool get_vector_from_origin_NED_m(T &vec_ned) const;
 
     // return horizontal distance in meters between two locations
     ftype get_distance(const Location &loc2) const;
@@ -119,6 +125,12 @@ public:
     // extrapolate latitude/longitude given distances (in meters) north
     // and east. Note that this is metres, *even for the altitude*.
     void offset(const Vector3p &ofs_ned);
+    void offset_up_cm(int32_t alt_offset_cm) {
+        alt += alt_offset_cm;
+    }
+    void offset_up_m(float alt_offset_m) {
+        alt += alt_offset_m * 100;
+    }
 
     // extrapolate latitude/longitude given bearing and distance
     void offset_bearing(ftype bearing_deg, ftype distance);
@@ -184,6 +196,10 @@ public:
     void linearly_interpolate_alt(const Location &point1, const Location &point2);
 
     bool initialised() const { return (lat !=0 || lng != 0 || alt != 0); }
+    // return true if alt is *exactly* zero.  This is not intended to
+    // be used for anything except magically changing a 0-altitude
+    // passed via mavlink into the current vehicle's altitude
+    bool alt_is_zero() const { return alt == 0; }
 
     // wrap longitude at -180e7 to 180e7
     static int32_t wrap_longitude(int64_t lon);

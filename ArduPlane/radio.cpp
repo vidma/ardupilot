@@ -145,7 +145,7 @@ void Plane::read_radio()
         && channel_throttle->get_control_in() > 50
         && stickmixing) {
         float nudge = (channel_throttle->get_control_in() - 50) * 0.02f;
-        if (ahrs.using_airspeed_sensor()) {
+        if (TECS_controller.use_airspeed()) {
             airspeed_nudge_cm = (aparm.airspeed_max - aparm.airspeed_cruise) * nudge * 100;
         } else {
             throttle_nudge = (aparm.throttle_max - aparm.throttle_cruise) * nudge;
@@ -231,7 +231,7 @@ void Plane::control_failsafe()
     const bool has_had_input = rc().has_had_rc_receiver() || rc().has_had_rc_override();
     if ((g.throttle_fs_enabled != ThrFailsafe::Enabled && !failsafe.rc_failsafe) || (allow_failsafe_bypass && !has_had_input)) {
         // If throttle fs not enabled and not in failsafe, or 
-        // not flying and disarmed, don't trigger failsafe check until RC has been received for the fist time  
+        // not flying and disarmed, don't trigger failsafe check until RC has been received for the first time  
         return;
     }
 
@@ -350,8 +350,8 @@ bool Plane::rc_failsafe_active(void) const
     if (!rc_throttle_value_ok()) {
         return true;
     }
-    if (millis() - failsafe.last_valid_rc_ms > 1000) {
-        // we haven't had a valid RC frame for 1 seconds
+    if (millis() - failsafe.last_valid_rc_ms > rc().get_fs_timeout_ms()) {
+        // we haven't had a valid RC frame for RC_FS_TIMEOUT seconds
         return true;
     }
     return false;

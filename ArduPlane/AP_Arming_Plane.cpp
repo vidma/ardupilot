@@ -55,8 +55,8 @@ bool AP_Arming_Plane::pre_arm_checks(bool display_failure)
         check_failed(display_failure, "System not initialised");
         return false;
     }
-    //are arming checks disabled?
-    if (checks_to_perform == 0) {
+    // are arming checks disabled?
+    if (should_skip_all_checks()) {
         return mandatory_checks(display_failure);
     }
     if (hal.util->was_watchdog_armed()) {
@@ -74,11 +74,6 @@ bool AP_Arming_Plane::pre_arm_checks(bool display_failure)
     // Check airspeed sensor
     ret &= AP_Arming::airspeed_checks(display_failure);
 #endif
-
-    if (plane.g.fs_timeout_long < plane.g.fs_timeout_short && plane.g.fs_action_short != FS_ACTION_SHORT_DISABLED) {
-        check_failed(display_failure, "FS_LONG_TIMEOUT < FS_SHORT_TIMEOUT");
-        ret = false;
-    }
 
     if (plane.aparm.roll_limit < 3) {
         check_failed(display_failure, "ROLL_LIMIT_DEG too small (%.1f)", plane.aparm.roll_limit.get());
@@ -181,12 +176,6 @@ bool AP_Arming_Plane::quadplane_checks(bool display_failure)
         ret = false;
     }
 
-    // lean angle parameter check
-    if (plane.quadplane.aparm.angle_max < 1000 || plane.quadplane.aparm.angle_max > 8000) {
-        check_failed(Check::PARAMETERS, display_failure, "Check Q_ANGLE_MAX");
-        ret = false;
-    }
-
     if ((plane.quadplane.tailsitter.enable > 0) && (plane.quadplane.tiltrotor.enable > 0)) {
         check_failed(Check::PARAMETERS, display_failure, "set TAILSIT_ENABLE 0 or TILT_ENABLE 0");
         ret = false;
@@ -205,11 +194,11 @@ bool AP_Arming_Plane::quadplane_checks(bool display_failure)
     }
 
     // ensure controllers are OK with us arming:
-    if (!plane.quadplane.pos_control->pre_arm_checks("PSC", failure_msg, ARRAY_SIZE(failure_msg))) {
+    if (!plane.quadplane.pos_control->pre_arm_checks("Q_P", failure_msg, ARRAY_SIZE(failure_msg))) {
         check_failed(Check::PARAMETERS, display_failure, "Bad parameter: %s", failure_msg);
         ret = false;
     }
-    if (!plane.quadplane.attitude_control->pre_arm_checks("ATC", failure_msg, ARRAY_SIZE(failure_msg))) {
+    if (!plane.quadplane.attitude_control->pre_arm_checks("Q_A", failure_msg, ARRAY_SIZE(failure_msg))) {
         check_failed(Check::PARAMETERS, display_failure, "Bad parameter: %s", failure_msg);
         ret = false;
     }
@@ -226,6 +215,14 @@ bool AP_Arming_Plane::quadplane_checks(bool display_failure)
 
     if ((plane.quadplane.tailsitter.enable > 0) && (plane.quadplane.q_fwd_thr_use != QuadPlane::FwdThrUse::OFF)) {
         check_failed(Check::PARAMETERS, display_failure, "set Q_FWD_THR_USE to 0");
+        ret = false;
+    }
+
+    // combining Q_RTL_MODE with either of the RTL_AUTOLAND options
+    // leads to precedence questions, so just don't allow it:
+    if (plane.g.rtl_autoland != RtlAutoland::RTL_DISABLE &&
+        plane.quadplane.rtl_mode != QuadPlane::RTL_MODE::NONE) {
+        check_failed(Check::PARAMETERS, display_failure, "unset one of RTL_AUTOLAND or Q_RTL_MODE");
         ret = false;
     }
 
@@ -255,8 +252,8 @@ bool AP_Arming_Plane::ins_checks(bool display_failure)
 bool AP_Arming_Plane::arm_checks(AP_Arming::Method method)
 {
 
-    //are arming checks disabled?
-    if (checks_to_perform == 0) {
+    // are arming checks disabled?
+    if (should_skip_all_checks()) {
         return true;
     }
 
@@ -448,7 +445,7 @@ bool AP_Arming_Plane::mission_checks(bool report)
                 const float dist = cmd.content.location.get_distance(prev_cmd.content.location);
                 const float tecs_land_speed = plane.TECS_controller.get_land_airspeed();
                 const float landing_speed = is_positive(tecs_land_speed)?tecs_land_speed:plane.aparm.airspeed_cruise;
-                const float min_dist = 0.75 * plane.quadplane.stopping_distance(sq(landing_speed));
+                const float min_dist = 0.75 * plane.quadplane.stopping_distance_m(sq(landing_speed));
                 if (dist < min_dist) {
                     ret = false;
                     check_failed(Check::MISSION, report, "VTOL land too short, min %.0fm", min_dist);

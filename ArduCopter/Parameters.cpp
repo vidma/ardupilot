@@ -57,7 +57,7 @@ const AP_Param::Info Copter::var_info[] = {
     // @Units: cm
     // @Range: 0.0 1000.0
     // @Increment: 10
-    GSCALAR(pilot_takeoff_alt,  "PILOT_TKOFF_ALT",  PILOT_TKOFF_ALT_DEFAULT),
+    GSCALAR(pilot_takeoff_alt_cm,  "PILOT_TKOFF_ALT",  PILOT_TKOFF_ALT_DEFAULT),
 
     // @Param: PILOT_THR_BHV
     // @DisplayName: Throttle stick behavior
@@ -76,50 +76,14 @@ const AP_Param::Info Copter::var_info[] = {
     GSCALAR(gcs_pid_mask,           "GCS_PID_MASK",     0),
 
 #if MODE_RTL_ENABLED
-    // @Param: RTL_ALT
-    // @DisplayName: RTL Altitude
-    // @Description: The minimum alt above home the vehicle will climb to before returning.  If the vehicle is flying higher than this value it will return at its current altitude.
-    // @Units: cm
-    // @Range: 30 300000
-    // @Increment: 1
-    // @User: Standard
-    GSCALAR(rtl_altitude,   "RTL_ALT",     RTL_ALT),
-
     // @Param: RTL_CONE_SLOPE
     // @DisplayName: RTL cone slope
     // @Description: Defines a cone above home which determines maximum climb
-    // @Range: 0.5 10.0
+    // @Range: 0 10.0
     // @Increment: 0.1
     // @Values: 0:Disabled,1:Shallow,3:Steep
     // @User: Standard
     GSCALAR(rtl_cone_slope,   "RTL_CONE_SLOPE",     RTL_CONE_SLOPE_DEFAULT),
-
-    // @Param: RTL_SPEED
-    // @DisplayName: RTL speed
-    // @Description: Defines the speed in cm/s which the aircraft will attempt to maintain horizontally while flying home. If this is set to zero, WPNAV_SPEED will be used instead.
-    // @Units: cm/s
-    // @Range: 0 2000
-    // @Increment: 50
-    // @User: Standard
-    GSCALAR(rtl_speed_cms,   "RTL_SPEED",     0),
-
-    // @Param: RTL_ALT_FINAL
-    // @DisplayName: RTL Final Altitude
-    // @Description: This is the altitude the vehicle will move to as the final stage of Returning to Launch or after completing a mission.  Set to zero to land.
-    // @Units: cm
-    // @Range: 0 1000
-    // @Increment: 1
-    // @User: Standard
-    GSCALAR(rtl_alt_final,  "RTL_ALT_FINAL", RTL_ALT_FINAL),
-
-    // @Param: RTL_CLIMB_MIN
-    // @DisplayName: RTL minimum climb
-    // @Description: The vehicle will climb this many cm during the initial climb portion of the RTL
-    // @Units: cm
-    // @Range: 0 3000
-    // @Increment: 10
-    // @User: Standard
-    GSCALAR(rtl_climb_min,  "RTL_CLIMB_MIN",    RTL_CLIMB_MIN_DEFAULT),
 
     // @Param: RTL_LOIT_TIME
     // @DisplayName: RTL loiter time
@@ -165,24 +129,6 @@ const AP_Param::Info Copter::var_info[] = {
     // @Values: 0:Never change yaw, 1:Face next waypoint, 2:Face next waypoint except RTL, 3:Face along GPS course
     // @User: Standard
     GSCALAR(wp_yaw_behavior,  "WP_YAW_BEHAVIOR",    WP_YAW_BEHAVIOR_DEFAULT),
-
-    // @Param: LAND_SPEED
-    // @DisplayName: Land speed
-    // @Description: The descent speed for the final stage of landing in cm/s
-    // @Units: cm/s
-    // @Range: 30 200
-    // @Increment: 10
-    // @User: Standard
-    GSCALAR(land_speed,             "LAND_SPEED",   LAND_SPEED),
-
-    // @Param: LAND_SPEED_HIGH
-    // @DisplayName: Land speed high
-    // @Description: The descent speed for the first stage of landing in cm/s. If this is zero then WPNAV_SPEED_DN is used
-    // @Units: cm/s
-    // @Range: 0 500
-    // @Increment: 10
-    // @User: Standard
-    GSCALAR(land_speed_high,        "LAND_SPEED_HIGH",   0),
     
     // @Param: PILOT_SPEED_UP
     // @DisplayName: Pilot maximum vertical speed ascending
@@ -191,7 +137,7 @@ const AP_Param::Info Copter::var_info[] = {
     // @Range: 50 500
     // @Increment: 10
     // @User: Standard
-    GSCALAR(pilot_speed_up,     "PILOT_SPEED_UP",   PILOT_VELZ_MAX),
+    GSCALAR(pilot_speed_up_cms,     "PILOT_SPEED_UP",   PILOT_SPEED_UP_DEFAULT),
 
     // @Param: PILOT_ACCEL_Z
     // @DisplayName: Pilot vertical acceleration
@@ -200,7 +146,7 @@ const AP_Param::Info Copter::var_info[] = {
     // @Range: 50 500
     // @Increment: 10
     // @User: Standard
-    GSCALAR(pilot_accel_z,  "PILOT_ACCEL_Z",    PILOT_ACCEL_Z_DEFAULT),
+    GSCALAR(pilot_accel_d_cmss,  "PILOT_ACCEL_Z",    PILOT_ACCEL_Z_DEFAULT),
 
     // @Param: FS_THR_ENABLE
     // @DisplayName: Throttle Failsafe Enable
@@ -299,12 +245,14 @@ const AP_Param::Info Copter::var_info[] = {
     // @Values: 0:Normal Start-up, 1:Start-up in ESC Calibration mode if throttle high, 2:Start-up in ESC Calibration mode regardless of throttle, 3:Start-up and automatically calibrate ESCs, 9:Disabled
     GSCALAR(esc_calibrate, "ESC_CALIBRATION",       0),
 
+#if AP_RC_TRANSMITTER_TUNING_ENABLED
     // @Param: TUNE
     // @DisplayName: Tuning Parameter
     // @Description: Selects parameter (normally a PID gain) that is being tuned with an RC transmitter's knob. The RC input channel used is assigned by setting RCx_OPTION to 219.
     // @User: Standard
     // @Values: 0:None,1:Stab Roll/Pitch kP,4:Rate Roll/Pitch kP,5:Rate Roll/Pitch kI,21:Rate Roll/Pitch kD,3:Stab Yaw kP,6:Rate Yaw kP,26:Rate Yaw kD,56:Rate Yaw Filter,55:Motor Yaw Headroom,14:AltHold kP,7:Throttle Rate kP,34:Throttle Accel kP,35:Throttle Accel kI,36:Throttle Accel kD,12:Loiter Pos kP,22:Velocity XY kP,28:Velocity XY kI,10:WP Speed,25:Acro Roll/Pitch deg/s,40:Acro Yaw deg/s,45:RC Feel,13:Heli Ext Gyro,38:Declination,39:Circle Rate,46:Rate Pitch kP,47:Rate Pitch kI,48:Rate Pitch kD,49:Rate Roll kP,50:Rate Roll kI,51:Rate Roll kD,52:Rate Pitch FF,53:Rate Roll FF,54:Rate Yaw FF,58:SysID Magnitude,59:PSC Angle Max,60:Loiter Speed
-    GSCALAR(radio_tuning, "TUNE",                   0),
+    GSCALAR(rc_tuning_param, "TUNE",                   0),
+#endif  // AP_RC_TRANSMITTER_TUNING_ENABLED
 
     // @Param: FRAME_TYPE
     // @DisplayName: Frame Type (+, X, V, etc)
@@ -325,15 +273,6 @@ const AP_Param::Info Copter::var_info[] = {
     // @Range: 0 127
     // @User: Advanced
     GSCALAR(disarm_delay, "DISARM_DELAY",           AUTO_DISARMING_DELAY),
-    
-    // @Param: ANGLE_MAX
-    // @DisplayName: Angle Max
-    // @Description: Maximum lean angle in all flight modes
-    // @Units: cdeg
-    // @Increment: 10
-    // @Range: 1000 8000
-    // @User: Advanced
-    ASCALAR(angle_max, "ANGLE_MAX",                 DEFAULT_ANGLE_MAX),
 
 #if MODE_POSHOLD_ENABLED
     // @Param: PHLD_BRAKE_RATE
@@ -364,14 +303,15 @@ const AP_Param::Info Copter::var_info[] = {
     // @Param: FS_EKF_ACTION
     // @DisplayName: EKF Failsafe Action
     // @Description: Controls the action that will be taken when an EKF failsafe is invoked
-    // @Values: 0:Report only, 1:Switch to Land mode if current mode requires postion, 2:Switch to AltHold mode if current mode requires postion, 3:Switch to Land mode from all modes
+    // @Values: 0:Report only, 1:Switch to Land mode if current mode requires position, 2:Switch to AltHold mode if current mode requires position, 3:Switch to Land mode from all modes
     // @User: Advanced
     GSCALAR(fs_ekf_action, "FS_EKF_ACTION",    FS_EKF_ACTION_DEFAULT),
 
     // @Param: FS_EKF_THRESH
     // @DisplayName: EKF failsafe variance threshold
     // @Description: Allows setting the maximum acceptable compass, velocity, position and height variances. Used in arming check and EKF failsafe.
-    // @Values: 0.6:Strict, 0.8:Default, 1.0:Relaxed
+    // @Values: 0:Disabled, 0.6:Strict, 0.8:Default, 1.0:Relaxed
+    // @Range: 0.0 1.0
     // @User: Advanced
     GSCALAR(fs_ekf_thresh, "FS_EKF_THRESH",    FS_EKF_THRESHOLD_DEFAULT),
 
@@ -607,12 +547,6 @@ const AP_Param::Info Copter::var_info[] = {
     GOBJECT(precland, "PLND_", AC_PrecLand),
 #endif
 
-#if AP_RPM_ENABLED
-    // @Group: RPM
-    // @Path: ../libraries/AP_RPM/AP_RPM.cpp
-    GOBJECT(rpm_sensor, "RPM", AP_RPM),
-#endif
-
 #if HAL_ADSB_ENABLED
     // @Group: ADSB_
     // @Path: ../libraries/AP_ADSB/AP_ADSB.cpp
@@ -701,11 +635,12 @@ const AP_Param::Info Copter::var_info[] = {
 const AP_Param::GroupInfo ParametersG2::var_info[] = {
 
     // @Param: WP_NAVALT_MIN
-    // @DisplayName: Minimum navigation altitude
-    // @Description: This is the altitude in meters above which for navigation can begin. This applies in auto takeoff and auto landing.
+    // @DisplayName: Waypoint navigation altitude minimum
+    // @Description: Altitude in meters above which navigation will begin during auto takeoff
+    // @Units: m
     // @Range: 0 5
     // @User: Standard
-    AP_GROUPINFO("WP_NAVALT_MIN", 1, ParametersG2, wp_navalt_min, 0),
+    AP_GROUPINFO("WP_NAVALT_MIN", 1, ParametersG2, wp_navalt_min_m, 0),
 
 #if HAL_BUTTON_ENABLED
     // @Group: BTN_
@@ -829,16 +764,9 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Range: 0 500
     // @Increment: 10
     // @User: Standard
-    AP_GROUPINFO("PILOT_SPEED_DN", 24, ParametersG2, pilot_speed_dn, 0),
+    AP_GROUPINFO("PILOT_SPEED_DN", 24, ParametersG2, pilot_speed_dn_cms, 0),
 
-    // @Param: LAND_ALT_LOW
-    // @DisplayName: Land alt low
-    // @Description: Altitude during Landing at which vehicle slows to LAND_SPEED
-    // @Units: cm
-    // @Range: 100 10000
-    // @Increment: 10
-    // @User: Advanced
-    AP_GROUPINFO("LAND_ALT_LOW", 25, ParametersG2, land_alt_low, 1000),
+    // 25 was LAND_ALT_LOW
 
 #if MODE_FLOWHOLD_ENABLED
     // @Group: FHLD
@@ -864,17 +792,19 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
 
     // 30 was AP_Scripting
 
+#if AP_RC_TRANSMITTER_TUNING_ENABLED
     // @Param: TUNE_MIN
     // @DisplayName: Tuning minimum
     // @Description: Transmitter Tuning minum value. The parameter being tuned will have its value set to this minimum value when the tuning knob is at its lowest position
     // @User: Standard
-    AP_GROUPINFO("TUNE_MIN", 31, ParametersG2, tuning_min, 0),
+    AP_GROUPINFO("TUNE_MIN", 31, ParametersG2, rc_tuning_min, 0),
 
     // @Param: TUNE_MAX
     // @DisplayName: Tuning maximum
     // @Description: Transmitter Tuning maximum value. The parameter being tuned will have its value set to this maximum value when the tuning knob is at its highest position
     // @User: Standard
-    AP_GROUPINFO("TUNE_MAX", 32, ParametersG2, tuning_max, 0),
+    AP_GROUPINFO("TUNE_MAX", 32, ParametersG2, rc_tuning_max, 0),
+#endif  // AP_RC_TRANSMITTER_TUNING_ENABLED
 
 #if AP_OAPATHPLANNER_ENABLED
     // @Group: OA_
@@ -1129,6 +1059,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
  */
 const AP_Param::GroupInfo ParametersG2::var_info2[] = {
 
+#if AC_PAYLOAD_PLACE_ENABLED
     // @Param: PLDP_THRESH
     // @DisplayName: Payload Place thrust ratio threshold
     // @Description: Ratio of vertical thrust during decent below which payload touchdown will trigger.
@@ -1154,11 +1085,12 @@ const AP_Param::GroupInfo ParametersG2::var_info2[] = {
 
     // @Param: PLDP_SPEED_DN
     // @DisplayName: Payload Place decent speed
-    // @Description: The maximum vertical decent velocity in m/s. If 0 LAND_SPEED value is used.
+    // @Description: The maximum vertical decent velocity in m/s. If 0 LAND_SPD_MS value is used.
     // @Units: m/s
     // @Range: 0 5
     // @User: Standard
     AP_GROUPINFO("PLDP_SPEED_DN", 4, ParametersG2, pldp_descent_speed_ms, 0.0),
+#endif  // AC_PAYLOAD_PLACE_ENABLED
 
     // @Param: SURFTRAK_TC
     // @DisplayName: Surface Tracking Filter Time Constant
@@ -1207,6 +1139,36 @@ const AP_Param::GroupInfo ParametersG2::var_info2[] = {
     // @Range: 1 10
     AP_GROUPINFO("FSTRATE_DIV", 10, ParametersG2, att_decimation, 1),
 #endif
+
+#if AP_RC_TRANSMITTER_TUNING_ENABLED
+    // @Param: TUNE2_MIN
+    // @DisplayName: Tuning minimum
+    // @Description: Minimum value that the parameter currently being tuned with the transmitter's TRANSMITTER_TUNING2 knob will be set to
+    // @User: Standard
+    AP_GROUPINFO("TUNE2_MIN", 11, ParametersG2, rc_tuning2_min, 0),
+
+    // @Param: TUNE2_MAX
+    // @DisplayName: Tuning maximum
+    // @Description: Maximum value that the parameter currently being tuned with the transmitter's TRANSMITTER2_TUNING knob will be set to
+    // @User: Standard
+    AP_GROUPINFO("TUNE2_MAX", 12, ParametersG2, rc_tuning2_max, 0),
+
+    // @Param: TUNE2
+    // @CopyFieldsFrom: TUNE
+    // @DisplayName: Tuning Parameter for TRANSMITTER_TUNE2
+    // @Description: Selects parameter (normally a PID gain) that is being tuned with an RC transmitter's knob. The RC input channel used is assigned by setting RCx_OPTION to 220.
+    AP_GROUPINFO("TUNE2", 13, ParametersG2, rc_tuning2_param, 0),
+#endif  // AP_RC_TRANSMITTER_TUNING_ENABLED
+
+#if MODE_RTL_ENABLED
+    // @Group: RTL_
+    // @Path: mode_rtl.cpp
+    AP_SUBGROUPPTR(mode_rtl_ptr, "RTL_", 14, ParametersG2, ModeRTL),
+#endif
+
+    // @Group: LAND_
+    // @Path: mode_land.cpp
+    AP_SUBGROUPPTR(mode_land_ptr, "LAND_", 15, ParametersG2, ModeLand),
 
     // ID 62 is reserved for the AP_SUBGROUPEXTENSION
 
@@ -1270,6 +1232,10 @@ ParametersG2::ParametersG2(void) :
 #if WEATHERVANE_ENABLED
     ,weathervane()
 #endif
+#if MODE_RTL_ENABLED
+    ,mode_rtl_ptr(&copter.mode_rtl)
+#endif
+    ,mode_land_ptr(&copter.mode_land)
 {
     AP_Param::setup_object_defaults(this, var_info);
     AP_Param::setup_object_defaults(this, var_info2);
@@ -1279,14 +1245,14 @@ void Copter::load_parameters(void)
 {
     AP_Vehicle::load_parameters(g.format_version, Parameters::k_format_version);
 
-#if MODE_RTL_ENABLED
-    // PARAMETER_CONVERSION - Added: Sep-2021
-    g.rtl_altitude.convert_parameter_width(AP_PARAM_INT16);
-#endif
-
     // PARAMETER_CONVERSION - Added: Mar-2022
 #if AP_FENCE_ENABLED
     AP_Param::convert_class(g.k_param_fence_old, &fence, fence.var_info, 0, true);
+#endif
+
+    // PARAMETER_CONVERSION - Added: July-2025 for ArduPilot-4.7
+#if AP_RPM_ENABLED
+    AP_Param::convert_class(g.k_param_rpm_sensor_old, &rpm_sensor, rpm_sensor.var_info, 0, true, true);
 #endif
 
     static const AP_Param::G2ObjectConversion g2_conversions[] {
@@ -1334,6 +1300,14 @@ void Copter::load_parameters(void)
     }
 #endif  // HAL_GCS_ENABLED
 
+#if MODE_RTL_ENABLED
+    // convert RTL parameters
+    copter.mode_rtl.convert_params();
+#endif
+
+    // convert LAND parameters
+    copter.mode_land.convert_params();
+
     // setup AP_Param frame type flags
     AP_Param::set_frame_type_flags(AP_PARAM_FRAME_COPTER);
 }
@@ -1343,7 +1317,7 @@ void Copter::convert_pid_parameters(void)
 {
     const AP_Param::ConversionInfo angle_and_filt_conversion_info[] = {
         // PARAMETER_CONVERSION - Added: Aug-2021
-        { Parameters::k_param_pi_vel_xy, 3, AP_PARAM_FLOAT, "PSC_VELXY_FLTE" },
+        { Parameters::k_param_pi_vel_xy, 3, AP_PARAM_FLOAT, "PSC_NE_VEL_FLTE" },
     };
 
     // convert angle controller gain and filter without scaling
@@ -1361,10 +1335,10 @@ void Copter::convert_pid_parameters(void)
         { "LOIT_SPEED", 3000.0f },
         { "PHLD_BRAKE_ANGLE", 800.0f },
         { "PHLD_BRAKE_RATE", 4.0f },
-        { "PSC_ACCZ_P", 0.28f },
-        { "PSC_VELXY_D", 0.0f },
-        { "PSC_VELXY_I", 0.5f },
-        { "PSC_VELXY_P", 1.0f },
+        { "PSC_D_ACC_P", 0.028f },
+        { "PSC_NE_VEL_D", 0.0f },
+        { "PSC_NE_VEL_I", 0.5f },
+        { "PSC_NE_VEL_P", 1.0f },
         { "RC8_OPTION", 32 },
         { "RC_OPTIONS", 0 },
         { "ATC_RAT_RLL_ILMI", 0.05},

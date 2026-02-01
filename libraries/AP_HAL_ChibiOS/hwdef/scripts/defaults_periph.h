@@ -18,16 +18,36 @@
   supported serial device type has it's own parameter within AP_Periph
   for which port is used.
  */
+#ifndef DEFAULT_SERIAL0_PROTOCOL
 #define DEFAULT_SERIAL0_PROTOCOL SerialProtocol_None
+#endif
+#ifndef DEFAULT_SERIAL1_PROTOCOL
 #define DEFAULT_SERIAL1_PROTOCOL SerialProtocol_None
+#endif
+#ifndef DEFAULT_SERIAL2_PROTOCOL
 #define DEFAULT_SERIAL2_PROTOCOL SerialProtocol_None
+#endif
+#ifndef DEFAULT_SERIAL3_PROTOCOL
 #define DEFAULT_SERIAL3_PROTOCOL SerialProtocol_None
+#endif
+#ifndef DEFAULT_SERIAL4_PROTOCOL
 #define DEFAULT_SERIAL4_PROTOCOL SerialProtocol_None
+#endif
+#ifndef DEFAULT_SERIAL5_PROTOCOL
 #define DEFAULT_SERIAL5_PROTOCOL SerialProtocol_None
+#endif
+#ifndef DEFAULT_SERIAL6_PROTOCOL
 #define DEFAULT_SERIAL6_PROTOCOL SerialProtocol_None
+#endif
+#ifndef DEFAULT_SERIAL7_PROTOCOL
 #define DEFAULT_SERIAL7_PROTOCOL SerialProtocol_None
+#endif
+#ifndef DEFAULT_SERIAL8_PROTOCOL
 #define DEFAULT_SERIAL8_PROTOCOL SerialProtocol_None
+#endif
+#ifndef DEFAULT_SERIAL9_PROTOCOL
 #define DEFAULT_SERIAL9_PROTOCOL SerialProtocol_None
+#endif
 
 #ifndef HAL_LOGGING_MAVLINK_ENABLED
 #define HAL_LOGGING_MAVLINK_ENABLED 0
@@ -156,10 +176,6 @@
 #define AP_SERVORELAYEVENTS_ENABLED 0
 #endif
 
-#ifndef AP_RELAY_ENABLED
-#define AP_RELAY_ENABLED 0
-#endif
-
 /*
  * sanity checks that hwdefs are up-to-date in terms of how they are
  * trying to configure the peripheral:
@@ -282,6 +298,9 @@
 #ifndef AP_PERIPH_BATTERY_TAG_ENABLED
 #define AP_PERIPH_BATTERY_TAG_ENABLED 0
 #endif
+#ifndef AP_PERIPH_BATTERY_BMS_ENABLED
+#define AP_PERIPH_BATTERY_BMS_ENABLED 0
+#endif
 #ifndef AP_PERIPH_PROXIMITY_ENABLED
 #define AP_PERIPH_PROXIMITY_ENABLED 0
 #endif
@@ -310,7 +329,7 @@
 #define AP_PERIPH_EFI_ENABLED 0
 #endif
 #ifndef AP_PERIPH_RTC_ENABLED
-#define AP_PERIPH_RTC_ENABLED 0
+#define AP_PERIPH_RTC_ENABLED AP_PERIPH_BATTERY_TAG_ENABLED
 #endif
 #ifndef AP_PERIPH_RTC_GLOBALTIME_ENABLED
 #define AP_PERIPH_RTC_GLOBALTIME_ENABLED 0
@@ -354,6 +373,9 @@
 #ifndef AP_PERIPH_BUZZER_WITHOUT_NOTIFY_ENABLED
 #define AP_PERIPH_BUZZER_WITHOUT_NOTIFY_ENABLED 0
 #endif
+#ifndef AP_PERIPH_ACTUATOR_TELEM_ENABLED
+#define AP_PERIPH_ACTUATOR_TELEM_ENABLED 0
+#endif
 
 /*
  * turning on of ArduPilot features based on which AP_Periph features
@@ -377,6 +399,18 @@
 #endif
 #ifndef AP_TEMPERATURE_SENSOR_ENABLED
 #define AP_TEMPERATURE_SENSOR_ENABLED AP_PERIPH_DEVICE_TEMPERATURE_ENABLED
+#endif
+#ifndef HAL_MSP_ENABLED
+#define HAL_MSP_ENABLED AP_PERIPH_MSP_ENABLED
+#endif
+#ifndef AP_RELAY_ENABLED
+#define AP_RELAY_ENABLED AP_PERIPH_RELAY_ENABLED
+#endif
+#ifndef HAL_PROXIMITY_ENABLED
+#define HAL_PROXIMITY_ENABLED AP_PERIPH_PROXIMITY_ENABLED
+#endif
+#ifndef HAL_EFI_ENABLED
+#define HAL_EFI_ENABLED AP_PERIPH_EFI_ENABLED
 #endif
 
 /*
@@ -430,6 +464,10 @@
 #ifndef AP_SIM_GPS_ENABLED
 #define AP_SIM_GPS_ENABLED (AP_SIM_ENABLED && AP_GPS_ENABLED)
 #endif
+
+#ifndef AP_SIM_VICON_ENABLED
+#define AP_SIM_VICON_ENABLED 0
+#endif  // AP_SIM_VICON_ENABLED
 
 /*
  * Airspeed Backends - we selectively turn backends *off*
@@ -624,6 +662,10 @@
 #define AP_NOTIFY_SCRIPTING_LED_ENABLED 0
 #endif
 
+#ifndef AP_SCRIPTING_BINDING_VEHICLE_ENABLED
+#define AP_SCRIPTING_BINDING_VEHICLE_ENABLED 0
+#endif  // AP_SCRIPTING_BINDING_VEHICLE_ENABLED
+
 #ifndef AP_PARAM_DYNAMIC_ENABLED
 #define AP_PARAM_DYNAMIC_ENABLED 0
 #endif
@@ -698,4 +740,8 @@
 
 #ifndef HAL_OS_POSIX_IO
 #define HAL_OS_POSIX_IO 0
+#endif
+
+#ifndef HAL_USE_LOAD_MEASURE
+#define HAL_USE_LOAD_MEASURE 0
 #endif

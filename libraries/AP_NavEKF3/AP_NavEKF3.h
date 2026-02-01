@@ -83,9 +83,9 @@ public:
     // returns false if estimate is unavailable
     bool getAirSpdVec(Vector3f &vel) const;
 
-    // return the innovation in m/s, innovation variance in (m/s)^2 and age in msec of the last TAS measurement processed
-    // returns false if the data is unavilable
-    bool getAirSpdHealthData(float &innovation, float &innovationVariance, uint32_t &age_ms) const;
+    // return the innovation in m/s, innovation variance in (m/s)^2 and age in msec of the last TAS measurement processed for a given sensor instance
+    // returns false if the data is unavailable
+    bool getAirSpdHealthData(uint8_t instance, float &innovation, float &innovationVariance, uint32_t &age_ms) const;
 
     // Return the rate of change of vertical position in the down direction (dPosD/dt) in m/s
     // This can be different to the z component of the EKF velocity state because it will fluctuate with height errors and corrections in the EKF
@@ -262,6 +262,12 @@ public:
      * delay_ms   : average delay of external nav system measurements relative to inertial measurements
     */
     void writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms);
+
+    /*
+     * Write terrain altitude (derived from SRTM) in meters above the origin
+     * only used by optical flow when out of rangefinder range
+     */
+    void writeTerrainData(float alt_m);
 
     // Set to true if the terrain underneath is stable enough to be used as a height reference
     // in combination with a range finder. Set to false if the terrain underneath the vehicle
@@ -457,8 +463,9 @@ private:
 
     // enum for processing options
     enum class Option {
-        JammingExpected     = (1<<0),
-        ManualLaneSwitch   = (1<<1),
+        JammingExpected         = (1<<0),
+        ManualLaneSwitch        = (1<<1),
+        OptflowMayUseTerrainAlt = (1<<2),
     };
     bool option_is_enabled(Option option) const {
         return (_options & (uint32_t)option) != 0;

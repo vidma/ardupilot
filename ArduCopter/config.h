@@ -93,8 +93,8 @@
 #endif
 
 // pre-arm baro vs inertial nav max alt disparity
-#ifndef PREARM_MAX_ALT_DISPARITY_CM
- # define PREARM_MAX_ALT_DISPARITY_CM       100     // barometer and inertial nav altitude must be within this many centimeters
+#ifndef PREARM_MAX_ALT_DISPARITY_M
+ # define PREARM_MAX_ALT_DISPARITY_M    1.0      // barometer and inertial nav altitude must be within this many meters
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -211,7 +211,7 @@
 //////////////////////////////////////////////////////////////////////////////
 // Sport - fly vehicle in rate-controlled (earth-frame) mode
 #ifndef MODE_SPORT_ENABLED
-# define MODE_SPORT_ENABLED 0
+# define MODE_SPORT_ENABLED (CONFIG_HAL_BOARD == HAL_BOARD_SITL)
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -318,8 +318,8 @@
 //////////////////////////////////////////////////////////////////////////////
 // Landing
 //
-#ifndef LAND_SPEED
- # define LAND_SPEED    50          // the descent speed for the final stage of landing in cm/s
+#ifndef LAND_SPD_MS_DEFAULT
+ # define LAND_SPD_MS_DEFAULT    0.5f   // the descent speed for the final stage of landing in m/s
 #endif
 #ifndef LAND_REPOSITION_DEFAULT
  # define LAND_REPOSITION_DEFAULT   1   // by default the pilot can override roll/pitch during landing
@@ -330,8 +330,13 @@
 #ifndef LAND_CANCEL_TRIGGER_THR
  # define LAND_CANCEL_TRIGGER_THR   700     // land is cancelled by input throttle above 700
 #endif
-#ifndef LAND_RANGEFINDER_MIN_ALT_CM
-#define LAND_RANGEFINDER_MIN_ALT_CM 200
+#ifndef LAND_RANGEFINDER_MIN_ALT_M
+#define LAND_RANGEFINDER_MIN_ALT_M  2.0
+#endif
+
+// error if old LAND parameter default definitions are used
+#ifdef LAND_SPEED
+ #error "LAND_SPEED definition replaced with LAND_SPD_MS_DEFAULT"
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -406,20 +411,20 @@
 #endif
 
 // RTL Mode
-#ifndef RTL_ALT_FINAL
- # define RTL_ALT_FINAL             0       // the altitude, in cm, the vehicle will move to as the final stage of Returning to Launch.  Set to zero to land.
+#ifndef RTL_ALT_FINAL_M_DEFAULT
+ # define RTL_ALT_FINAL_M_DEFAULT   0       // the altitude, in meters, the vehicle will move to as the final stage of Returning to Launch.  Set to zero to land.
 #endif
 
-#ifndef RTL_ALT
- # define RTL_ALT                   1500    // default alt to return to home in cm, 0 = Maintain current altitude
+#ifndef RTL_ALT_M_DEFAULT
+ # define RTL_ALT_M_DEFAULT         15      // default alt to return to home in meters, 0 = Maintain current altitude
 #endif
 
-#ifndef RTL_ALT_MIN
- # define RTL_ALT_MIN               30     // min height above ground for RTL (i.e 30cm)
+#ifndef RTL_ALT_MIN_M
+ # define RTL_ALT_MIN_M             0.30    // min height above ground for RTL (i.e 0.3 m)
 #endif
 
-#ifndef RTL_CLIMB_MIN_DEFAULT
- # define RTL_CLIMB_MIN_DEFAULT     0       // vehicle will always climb this many cm as first stage of RTL
+#ifndef RTL_CLIMB_MIN_M_DEFAULT
+ # define RTL_CLIMB_MIN_M_DEFAULT   0       // vehicle will always climb this many meters during the first stage of RTL
 #endif
 
 #ifndef RTL_CONE_SLOPE_DEFAULT
@@ -434,18 +439,29 @@
  # define RTL_LOITER_TIME           5000    // Time (in milliseconds) to loiter above home before beginning final descent
 #endif
 
+// error if old RTL parameter default definitions are used
+#ifdef RTL_ALT_FINAL
+  #error "RTL_ALT_FINAL definition replaced with RTL_ALT_FINAL_M_DEFAULT"
+#endif
+#ifdef RTL_ALT
+  #error "RTL_ALT definition replaced with RTL_ALT_M_DEFAULT"
+#endif
+#ifdef RTL_CLIMB_MIN_DEFAULT
+  #error "RTL_CLIMB_MIN_DEFAULT definition replaced with RTL_CLIMB_MIN_M_DEFAULT"
+#endif
+
 // AUTO Mode
 #ifndef WP_YAW_BEHAVIOR_DEFAULT
  # define WP_YAW_BEHAVIOR_DEFAULT   WP_YAW_BEHAVIOR_LOOK_AT_NEXT_WP_EXCEPT_RTL
 #endif
 
-#ifndef YAW_LOOK_AHEAD_MIN_SPEED
- # define YAW_LOOK_AHEAD_MIN_SPEED  100             // minimum ground speed in cm/s required before copter is aimed at ground course
+#ifndef YAW_LOOK_AHEAD_MIN_SPEED_MS
+ # define YAW_LOOK_AHEAD_MIN_SPEED_MS 1     // minimum ground speed in m/s required before copter is aimed at ground course
 #endif
 
 // Super Simple mode
-#ifndef SUPER_SIMPLE_RADIUS
- # define SUPER_SIMPLE_RADIUS       1000
+#ifndef SUPER_SIMPLE_RADIUS_M
+ # define SUPER_SIMPLE_RADIUS_M       10.0
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -454,18 +470,19 @@
 #ifndef ROLL_PITCH_YAW_INPUT_MAX
  # define ROLL_PITCH_YAW_INPUT_MAX      4500        // roll, pitch and yaw input range
 #endif
-#ifndef DEFAULT_ANGLE_MAX
- # define DEFAULT_ANGLE_MAX         3000            // ANGLE_MAX parameters default value
+
+#ifdef DEFAULT_ANGLE_MAX
+ #error "DEFAULT_ANGLE_MAX definition replaced with AC_ATTITUDE_CONTROL_ANGLE_MAX_DEFAULT (in degrees)"
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
 // Stop mode defaults
 //
-#ifndef BRAKE_MODE_SPEED_Z
- # define BRAKE_MODE_SPEED_Z     250 // z-axis speed in cm/s in Brake Mode
+#ifndef BRAKE_MODE_SPEED_Z_MS
+ # define BRAKE_MODE_SPEED_Z_MS       2.50 // z-axis speed in m/s in Brake Mode
 #endif
-#ifndef BRAKE_MODE_DECEL_RATE
- # define BRAKE_MODE_DECEL_RATE  750 // acceleration rate in cm/s/s in Brake Mode
+#ifndef BRAKE_MODE_DECEL_RATE_MSS
+ # define BRAKE_MODE_DECEL_RATE_MSS   7.50 // acceleration rate in m/s/s in Brake Mode
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -488,8 +505,8 @@
 #endif
 
 // default maximum vertical velocity and acceleration the pilot may request
-#ifndef PILOT_VELZ_MAX
- # define PILOT_VELZ_MAX    250     // maximum vertical velocity in cm/s
+#ifndef PILOT_SPEED_UP_DEFAULT
+ # define PILOT_SPEED_UP_DEFAULT    250     // maximum vertical velocity in cm/s
 #endif
 #ifndef PILOT_ACCEL_Z_DEFAULT
  # define PILOT_ACCEL_Z_DEFAULT 250 // vertical acceleration in cm/s/s while altitude is under pilot control
@@ -509,11 +526,11 @@
 //////////////////////////////////////////////////////////////////////////////
 // Throw mode configuration
 //
-#ifndef THROW_HIGH_SPEED
-# define THROW_HIGH_SPEED       500.0f  // vehicle much reach this total 3D speed in cm/s (or be free falling)
+#ifndef THROW_HIGH_SPEED_MS
+# define THROW_HIGH_SPEED_MS      5.0   // vehicle much reach this total 3D speed in cm/s (or be free falling)
 #endif
-#ifndef THROW_VERTICAL_SPEED
-# define THROW_VERTICAL_SPEED   50.0f   // motors start when vehicle reaches this total 3D speed in cm/s
+#ifndef THROW_VERTICAL_SPEED_MS
+# define THROW_VERTICAL_SPEED_MS  0.5   // motors start when vehicle reaches this total 3D speed in cm/s
 #endif
 
 //////////////////////////////////////////////////////////////////////////////

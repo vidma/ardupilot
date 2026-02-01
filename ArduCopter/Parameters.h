@@ -6,6 +6,8 @@
 #include "RC_Channel_Copter.h"
 #include <AP_Proximity/AP_Proximity.h>
 
+class ModeRTL;
+
 #if MODE_FOLLOW_ENABLED
  # include <AP_Follow/AP_Follow.h>
 #endif
@@ -102,13 +104,13 @@ public:
         k_param_throttle_accel_enabled,     // deprecated - remove
         k_param_wp_yaw_behavior,
         k_param_acro_trainer,
-        k_param_pilot_speed_up,         // renamed from k_param_pilot_velocity_z_max
+        k_param_pilot_speed_up_cms,         // renamed from k_param_pilot_velocity_z_max
         k_param_circle_rate,            // deprecated - remove
         k_param_rangefinder_gain,       // deprecated - remove
         k_param_ch8_option_old,         // deprecated
         k_param_arming_check_old,       // deprecated - remove
         k_param_sprayer,
-        k_param_angle_max,
+        k_param_angle_max,              // remove
         k_param_gps_hdop_good,
         k_param_battery,
         k_param_fs_batt_mah,            // unused - moved to AP_BattMonitor
@@ -122,7 +124,7 @@ public:
         k_param_rally,
         k_param_poshold_brake_rate_degs,
         k_param_poshold_brake_angle_max,
-        k_param_pilot_accel_z,
+        k_param_pilot_accel_d_cmss,
         k_param_serial0_baud,           // deprecated - remove
         k_param_serial1_baud,           // deprecated - remove
         k_param_serial2_baud,           // deprecated - remove
@@ -138,7 +140,7 @@ public:
         k_param_cli_enabled_old,        // deprecated - remove
         k_param_throttle_filt,
         k_param_throttle_behavior,
-        k_param_pilot_takeoff_alt, // 64
+        k_param_pilot_takeoff_alt_cm, // 64
 
         // 65: AP_Limits Library
         k_param_limits = 65,            // deprecated - remove
@@ -229,7 +231,7 @@ public:
         //
         // 135 : reserved for Solo until features merged with master
         //
-        k_param_rtl_speed_cms = 135,
+        k_param_rtl_speed_cms = 135,    // remove
         k_param_fs_batt_curr_rtl,
         k_param_rtl_cone_slope, // 137
 
@@ -259,10 +261,10 @@ public:
         //
         // 160: Navigation parameters
         //
-        k_param_rtl_altitude = 160,
+        k_param_rtl_altitude_cm = 160,  // remove
         k_param_crosstrack_gain,    // deprecated - remove with next eeprom number change
         k_param_rtl_loiter_time,
-        k_param_rtl_alt_final,
+        k_param_rtl_alt_final_cm,   // remove
         k_param_tilt_comp, // 164 deprecated - remove with next eeprom number change
 
 
@@ -299,9 +301,9 @@ public:
         k_param_failsafe_throttle_value,
         k_param_throttle_trim,          // remove
         k_param_esc_calibrate,
-        k_param_radio_tuning,
-        k_param_radio_tuning_high_old,   // unused
-        k_param_radio_tuning_low_old,    // unused
+        k_param_rc_tuning_param,
+        k_param_rc_tuning_param_high_old,   // unused
+        k_param_rc_tuning_param_low_old,    // unused
         k_param_rc_speed = 192,
         k_param_failsafe_battery_enabled, // unused - moved to AP_BattMonitor
         k_param_throttle_mid,           // remove
@@ -334,10 +336,10 @@ public:
         k_param_waypoint_radius,     // remove
         k_param_circle_radius,       // remove
         k_param_waypoint_speed_max,  // remove
-        k_param_land_speed,
+        k_param_land_speed_cms,      // remove
         k_param_auto_velocity_z_min, // remove
         k_param_auto_velocity_z_max, // remove - 219
-        k_param_land_speed_high,
+        k_param_land_speed_high_cms, // remove
 
         //
         // 220: PI/D Controllers
@@ -370,8 +372,8 @@ public:
         k_param_autotune_aggressiveness, // remove
         k_param_pi_vel_xy,              // remove
         k_param_fs_ekf_action,
-        k_param_rtl_climb_min,
-        k_param_rpm_sensor,
+        k_param_rtl_climb_min_cm,   // remove
+        k_param_rpm_sensor_old, // remove
         k_param_autotune_min_d, // remove
         k_param_arming, // 252  - AP_Arming
         k_param_logger = 253, // 253 - Logging Group
@@ -393,14 +395,10 @@ public:
 
     AP_Float        throttle_filt;
     AP_Int16        throttle_behavior;
-    AP_Float        pilot_takeoff_alt;
+    AP_Float        pilot_takeoff_alt_cm;
 
 #if MODE_RTL_ENABLED
-    AP_Int32        rtl_altitude;
-    AP_Int16        rtl_speed_cms;
     AP_Float        rtl_cone_slope;
-    AP_Int16        rtl_alt_final;
-    AP_Int16        rtl_climb_min;              // rtl minimum climb in cm
     AP_Int32        rtl_loiter_time;
     AP_Enum<ModeRTL::RTLAltType> rtl_alt_type;
 #endif
@@ -419,10 +417,8 @@ public:
 
     // Waypoints
     //
-    AP_Int16        land_speed;
-    AP_Int16        land_speed_high;
-    AP_Int16        pilot_speed_up;    // maximum vertical ascending velocity the pilot may request
-    AP_Int16        pilot_accel_z;               // vertical acceleration the pilot may request
+    AP_Int16        pilot_speed_up_cms;         // maximum vertical ascending velocity the pilot may request
+    AP_Int16        pilot_accel_d_cmss;         // vertical acceleration the pilot may request
 
     // Throttle
     //
@@ -446,7 +442,9 @@ public:
     //
     AP_Int32        log_bitmask;
     AP_Int8         esc_calibrate;
-    AP_Int8         radio_tuning;
+#if AP_RC_TRANSMITTER_TUNING_ENABLED
+    AP_Int8         rc_tuning_param;
+#endif  // AP_RC_TRANSMITTER_TUNING_ENABLED
     AP_Int8         frame_type;
     AP_Int8         disarm_delay;
 
@@ -497,7 +495,7 @@ public:
     static const struct AP_Param::GroupInfo var_info2[];
 
     // altitude at which nav control can start in takeoff
-    AP_Float wp_navalt_min;
+    AP_Float wp_navalt_min_m;
 
     // unused_integer simply exists so that the constructor for
     // ParametersG2 can be created with a relatively easy syntax in
@@ -565,10 +563,7 @@ public:
 #endif
 
     // Additional pilot velocity items
-    AP_Int16    pilot_speed_dn;
-
-    // Land alt final stage
-    AP_Int16 land_alt_low;
+    AP_Int16    pilot_speed_dn_cms;
 
 #if TOY_MODE_ENABLED
     ToyMode toy_mode;
@@ -594,8 +589,10 @@ public:
     void *autotune_ptr;
 #endif
 
-    AP_Float tuning_min;
-    AP_Float tuning_max;
+#if AP_RC_TRANSMITTER_TUNING_ENABLED
+    AP_Float rc_tuning_min;
+    AP_Float rc_tuning_max;
+#endif  // AP_RC_TRANSMITTER_TUNING_ENABLED
 
 #if AP_OAPATHPLANNER_ENABLED
     // object avoidance path planning
@@ -682,14 +679,29 @@ public:
     AC_WeatherVane weathervane;
 #endif
 
+#if AC_PAYLOAD_PLACE_ENABLED
     // payload place parameters
     AP_Float pldp_thrust_placed_fraction;
     AP_Float pldp_range_finder_maximum_m;
     AP_Float pldp_delay_s;
     AP_Float pldp_descent_speed_ms;
+#endif  // AC_PAYLOAD_PLACE_ENABLED
 
     AP_Int8 att_enable;
     AP_Int8 att_decimation;
+
+#if AP_RC_TRANSMITTER_TUNING_ENABLED
+    // second transmitter channel for tuning:
+    AP_Int8 rc_tuning2_param;
+    AP_Float rc_tuning2_min;
+    AP_Float rc_tuning2_max;
+#endif  // AP_RC_TRANSMITTER_TUNING_ENABLED
+
+#if MODE_RTL_ENABLED
+    void *mode_rtl_ptr;
+#endif
+
+    void *mode_land_ptr;
 };
 
 extern const AP_Param::Info        var_info[];

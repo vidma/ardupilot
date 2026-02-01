@@ -129,83 +129,10 @@ void AP_Mount_XFRobot::update()
     // check for recording request timeout
     check_recording_timeout();
 
-    // change to RC_TARGETING mode if RC input has changed
-    set_rctargeting_on_rcinput_change();
+    AP_Mount_Backend::update_mnt_target();
 
-    // flag to trigger sending target angles to gimbal
-    bool resend_now = false;
-
-    // update based on mount mode
-    switch (get_mode()) {
-        // move mount to a "retracted" position
-        case MAV_MOUNT_MODE_RETRACT: {
-            const Vector3f &target = _params.retract_angles.get();
-            mnt_target.angle_rad.set(target*DEG_TO_RAD, false);
-            mnt_target.target_type = MountTargetType::ANGLE;
-            break;
-        }
-
-        // move mount to a neutral position, typically pointing forward
-        case MAV_MOUNT_MODE_NEUTRAL: {
-            const Vector3f &target = _params.neutral_angles.get();
-            mnt_target.angle_rad.set(target*DEG_TO_RAD, false);
-            mnt_target.target_type = MountTargetType::ANGLE;
-            break;
-        }
-
-        // point to the angles given by a mavlink message
-        case MAV_MOUNT_MODE_MAVLINK_TARGETING:
-            // mnt_target should have already been filled in by set_angle_target() or set_rate_target()
-            resend_now = true;
-            break;
-
-        // RC radio manual angle control, but with stabilization from the AHRS
-        case MAV_MOUNT_MODE_RC_TARGETING: {
-            // update targets using pilot's RC inputs
-            update_mnt_target_from_rc_target();
-            resend_now = true;
-            break;
-        }
-
-        // point mount to a GPS point given by the mission planner
-        case MAV_MOUNT_MODE_GPS_POINT:
-            if (get_angle_target_to_roi(mnt_target.angle_rad)) {
-                mnt_target.target_type = MountTargetType::ANGLE;
-                resend_now = true;
-            }
-            break;
-
-        // point mount to Home location
-        case MAV_MOUNT_MODE_HOME_LOCATION:
-            if (get_angle_target_to_home(mnt_target.angle_rad)) {
-                mnt_target.target_type = MountTargetType::ANGLE;
-                resend_now = true;
-            }
-            break;
-
-        // point mount to another vehicle
-        case MAV_MOUNT_MODE_SYSID_TARGET:
-            if (get_angle_target_to_sysid(mnt_target.angle_rad)) {
-                mnt_target.target_type = MountTargetType::ANGLE;
-                resend_now = true;
-            }
-            break;
-
-        default:
-            // we do not know this mode so do nothing
-            break;
-    }
-
-    // update angle targets from angle rates
-    if (mnt_target.target_type == MountTargetType::RATE) {
-        update_angle_target_from_rate(mnt_target.rate_rads, mnt_target.angle_rad);
-    }
-
-    // resend target angles at least once per second
-    resend_now = resend_now || ((AP_HAL::millis() - last_send_ms) > SEND_ATTITUDE_TARGET_MS);
-    if (resend_now) {
-        send_target_angles(mnt_target.angle_rad);
-    }
+    // send target angles (which may be derived from other target types)
+    send_target_to_gimbal();
 }
 
 // return true if healthy
@@ -421,7 +348,7 @@ void AP_Mount_XFRobot::process_packet()
 }
 
 // send_target_angles
-void AP_Mount_XFRobot::send_target_angles(const MountTarget& angle_target_rad)
+void AP_Mount_XFRobot::send_target_angles(const MountAngleTarget& angle_target_rad)
 {
     // exit immediately if not initialised or not enough space to send packet
     if (!_initialised || _uart->txspace() < sizeof(SetAttitudePacket)) {
@@ -455,8 +382,8 @@ void AP_Mount_XFRobot::send_target_angles(const MountTarget& angle_target_rad)
     // byte 12~13: absolute roll angle of vehicle (int16, -18000 ~ +18000)
     // byte 14~15: absolute pitch angle of vehicle (int16, -9000 ~ +9000)
     // byte 16~17: absolute yaw angle of vehicle (uint16, 0 ~ 36000)
-    set_attitude_packet.content.main.roll_abs = htole16(constrain_int16(degrees(AP::ahrs().get_roll_rad()) * 100, -18000, 18000));
-    set_attitude_packet.content.main.pitch_abs = htole16(constrain_int16(degrees(AP::ahrs().get_pitch_rad()) * 100, -9000, 9000));
+    set_attitude_packet.content.main.roll_abs = htole16(constrain_int16(AP::ahrs().get_roll_deg() * 100, -18000, 18000));
+    set_attitude_packet.content.main.pitch_abs = htole16(constrain_int16(AP::ahrs().get_pitch_deg() * 100, -9000, 9000));
     set_attitude_packet.content.main.yaw_abs = htole16(constrain_int16(degrees(wrap_PI(AP::ahrs().get_yaw_rad())) * 100, -18000, 18000));
 
     // byte 18~19: North acceleration of vehicle (int16, cm/s/s)
@@ -465,7 +392,7 @@ void AP_Mount_XFRobot::send_target_angles(const MountTarget& angle_target_rad)
     const Vector3f &accel_ef = AP::ahrs().get_accel_ef();
     set_attitude_packet.content.main.accel_north = htole16(constrain_int16(accel_ef.x * 100, -INT16_MAX, INT16_MAX));
     set_attitude_packet.content.main.accel_east = htole16(constrain_int16(accel_ef.y * 100, -INT16_MAX, INT16_MAX));
-    set_attitude_packet.content.main.accel_up = htole16(constrain_int16(accel_ef.z * 100, -INT16_MAX, INT16_MAX));
+    set_attitude_packet.content.main.accel_up = htole16(constrain_int16(-(accel_ef.z + GRAVITY_MSS) * 100, -INT16_MAX, INT16_MAX));
 
     // byte 24~25: North speed of vehicle (int16, decimeter/s)
     // byte 26~27: East speed of vehicle (int16, decimeter/s)

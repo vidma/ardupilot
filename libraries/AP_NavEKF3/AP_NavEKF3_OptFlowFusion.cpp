@@ -297,6 +297,14 @@ void NavEKF3_core::FuseOptFlow(const of_elements &ofDataDelayed, bool really_fus
     // constrain height above ground to be above range measured on ground
     ftype heightAboveGndEst = MAX((terrainState - pd), rngOnGnd);
 
+#if EK3_FEATURE_OPTFLOW_SRTM
+    // if ground offset (aka terrainState) is not valid, use SRTM altitude
+    terrain_srtm_alt_valid = ((imuSampleTime_ms - terrain_srtm_alt_ms) < 5000);
+    if (!gndOffsetValid && terrain_srtm_alt_valid) {
+        heightAboveGndEst = MAX((terrain_srtm_alt - pd), rngOnGnd);
+    }
+#endif
+
     // calculate range from ground plain to centre of sensor fov assuming flat earth
     ftype range = constrain_ftype((heightAboveGndEst/prevTnb.c.z),rngOnGnd,1000.0f);
 
@@ -694,27 +702,21 @@ void NavEKF3_core::FuseOptFlow(const of_elements &ofDataDelayed, bool really_fus
                 flowFusionActive = true;
                 GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EKF3 IMU%u fusing optical flow",(unsigned)imu_index);
             }
-            // correct the covariance P = (I - K*H)*P
-            // take advantage of the empty columns in KH to reduce the
-            // number of operations
-            for (uint8_t i = 0; i<=stateIndexLim; i++) {
-                for (uint8_t j = 0; j<=6; j++) {
-                    KH[i][j] = Kfusion[i] * H_LOS[j];
-                }
-                for (uint8_t j = 7; j<=stateIndexLim; j++) {
-                    KH[i][j] = 0.0f;
-                }
-            }
-            for (uint8_t j = 0; j<=stateIndexLim; j++) {
-                for (uint8_t i = 0; i<=stateIndexLim; i++) {
+
+            // correct the covariance P = (I - K*H)*P = P - K*H*P. take advantage of
+            // the zero elements of H to reduce the number of operations.
+            for (unsigned i = 0; i<=stateIndexLim; i++) {
+                // j as the inner loop allows the compiler to hoist the KH product
+                // to save computation, and do the inner indexing more efficiently.
+                for (unsigned j = 0; j<=stateIndexLim; j++) {
                     ftype res = 0;
-                    res += KH[i][0] * P[0][j];
-                    res += KH[i][1] * P[1][j];
-                    res += KH[i][2] * P[2][j];
-                    res += KH[i][3] * P[3][j];
-                    res += KH[i][4] * P[4][j];
-                    res += KH[i][5] * P[5][j];
-                    res += KH[i][6] * P[6][j];
+                    res += (Kfusion[i] * H_LOS[0]) * P[0][j];
+                    res += (Kfusion[i] * H_LOS[1]) * P[1][j];
+                    res += (Kfusion[i] * H_LOS[2]) * P[2][j];
+                    res += (Kfusion[i] * H_LOS[3]) * P[3][j];
+                    res += (Kfusion[i] * H_LOS[4]) * P[4][j];
+                    res += (Kfusion[i] * H_LOS[5]) * P[5][j];
+                    res += (Kfusion[i] * H_LOS[6]) * P[6][j];
                     KHP[i][j] = res;
                 }
             }
