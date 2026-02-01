@@ -314,8 +314,9 @@ private:
 
     uint32_t _last_PQTM_vel_ms;
     uint32_t _last_PQTM_acc_ms;
-#endif  // AP_GPS_NMEA_QUECTEL_ENABLED
     bool _expect_pqtm;
+#endif  // AP_GPS_NMEA_QUECTEL_ENABLED
+
     bool _expect_agrica;
 
     // last time we sent type specific config strings
