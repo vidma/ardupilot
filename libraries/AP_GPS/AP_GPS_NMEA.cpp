@@ -605,6 +605,10 @@ bool AP_GPS_NMEA::_term_complete()
             _sentence_type = _GPS_SENTENCE_PQTMPVT;
             return false;
         }
+        if (strcmp(_term, "PQTMTAR") == 0 && _expect_pqtm) {
+            _sentence_type = _GPS_SENTENCE_PQTMTAR;
+            return false;
+        }
 #endif // AP_GPS_NMEA_QUECTEL_ENABLED
         /*
           The first two letters of the NMEA term are the talker
@@ -748,6 +752,11 @@ bool AP_GPS_NMEA::_term_complete()
         case _GPS_SENTENCE_PQTMPVT + 1 ... _GPS_SENTENCE_PQTMPVT + 19: // PQTMPVT message (19 fields)
             parse_pqtmpvt_field(_term_number, _term);
             break;
+        #if GPS_MOVING_BASELINE
+        case _GPS_SENTENCE_PQTMTAR + 1 ... _GPS_SENTENCE_PQTMTAR + 12: // PQTMTAR message (12 fields)
+            parse_pqtmtar_field(_term_number, _term);
+            break;
+        #endif // GPS_MOVING_BASELINE
 #endif // AP_GPS_NMEA_QUECTEL_ENABLED
         }
     }
@@ -1012,6 +1021,125 @@ void AP_GPS_NMEA::parse_pqtmpvt_field(uint16_t term_number, const char *term)
         break;
     }
 }
+
+#if GPS_MOVING_BASELINE
+
+/*
+  parse PQTMTAR field - Outputs the time and attitude. The attitude computation in this message is computed from the two-antenna system.
+  Only the LG580P supports this message.
+
+  Examples:
+  - with RTK fix:
+    $PQTMTAR,1,215951.600,5,,0.206,-11.841884,,234.657328,89.989998,,177.466919,20*49
+  - without RTK fix:
+    $PQTMTAR,1,215857.400,1,,0.000,,,,,,,21*64
+
+
+ Format:
+ $PQTMTAR,<MsgVer>,<Time>,<Quality>,<Res>,<Length>,<Pitch>,<Roll>,<Heading>,<Acc_Pitch>,<Acc_Roll>,<Acc_Heading>,<UsedSV>*<Checksum><CR><LF>
+
+>>> list(enumerate("""$PQTMTAR,<MsgVer>,<Time>,<Quality>,<Res>,<Length>,<Pitch>,<Roll>,<Heading>,<Acc_Pitch>,<Acc_Roll>,<Acc_Heading>,<UsedSV>*<Checksum><CR><LF>""".split(',')))
+
+[(0, '$PQTMTAR'), (1, '<MsgVer>'), (2, '<Time>'), (3, '<Quality>'), (4, '<Res>'), (5, '<Length>'), (6, '<Pitch>'), (7, '<Roll>'), (8, '<Heading>'), 
+(9, '<Acc_Pitch>'), (10, '<Acc_Roll>'), (11, '<Acc_Heading>'), (12, '<UsedSV>*<Checksum><CR><LF>')]
+ */
+void AP_GPS_NMEA::parse_pqtmtar_field(uint16_t term_number, const char *term)
+{
+    // FIXME
+    auto &ph = _pqmtarheading;
+
+    switch (term_number) {
+    case 2: // UTC Time (hhmmss.ddd)
+        // FIXME: is this loosing accuracy - the last digit?
+        ph.time_ms = _parse_decimal_100(term) * 10;
+        break;
+    case 3: // GPS Heading Quality
+        // 0 = Fix not available or invalid
+        // 1 = GPS SPS Mode, fix valid
+        // 2 = Differential GPS, SPS Mode, or Satellite Based Augmentation System (SBAS), fix valid
+        // 3 = GPS PPS Mode, fix valid
+        // 4 = Fix Heading. System used in RTK mode with fixed integers
+        // 5 = Float Heading. Satellite system used in RTK mode, floating integers
+        ph.quality = atoi(term);
+        break;
+    // case 4: // Reserved
+    case 5: // Baseline length (meters)
+        ph.baseline_length = atof(term);
+        break;
+    case 6: // Pitch Angle (degrees, -90.0 -90.0)
+        ph.pitch = atof(term);
+        break;
+    case 7: // Roll Angle (degrees, -180.0 -180.0)
+        ph.roll = atof(term);
+        break;
+    case 8: // Heading (degrees, 0.0-360.0)
+        ph.heading = atof(term);
+        break;
+    case 9: // Pitch Accuracy (degrees)
+        ph.pitch_acc = atof(term);
+        break;
+    case 10: // Roll Accuracy (degrees)
+        ph.roll_acc = atof(term);
+        break;
+    case 11: // Heading Accuracy (degrees)
+        ph.heading_acc = atof(term);
+        // FIXME: Update state with heading information
+        // state.velocity = ph.vel_NED;
+        // state.have_vertical_velocity = true;
+        // state.ground_speed = ph.ground_speed;
+        // state.ground_course = ph.heading;
+        // state.speed_accuracy = ph.speed_acc;
+        // state.have_speed_accuracy = true;
+        // _last_PQTM_vel_ms = AP_HAL::millis();
+        break;
+    case 12:  // 12 - <UsedSV>	Satellites Number used for heading solution
+        ph.used_sv = atoi(term);
+        #if HAL_LOGGING_ENABLED
+        // FIXME: write to log
+        // ph.time_ms,
+        // ph.quality,
+        // ph.baseline_length,
+        // ph.pitch,
+        // ph.roll,
+        // ph.heading,
+        // ph.pitch_acc,
+        // ph.roll_acc,
+        // ph.heading_acc,
+        // ph.used_sv
+
+        AP::logger().Write_MessageF("head %u q:%u b:%.1f p:%.1f r:%.1f h:%.1f",
+                                    state.instance+1,
+                                    ph.time_ms,
+                                    ph.quality,
+                                    ph.baseline_length,
+                                    ph.pitch,
+                                    ph.roll,
+                                    ph.heading
+
+                                    // ph.pitch_acc,
+                                    // ph.roll_acc,
+                                    // ph.heading_acc,
+                                    // ph.used_sv
+        );
+
+        AP::logger().Write_MessageF("head acc:%.1f %.1f %.1f sv:%u",
+                                    state.instance+1,
+                                    //ph.time_ms,
+                                    // ph.quality,
+                                    // ph.baseline_length,
+                                    // ph.pitch,
+                                    // ph.roll,
+                                    // ph.heading,
+                                    ph.pitch_acc,
+                                    ph.roll_acc,
+                                    ph.heading_acc,
+                                    ph.used_sv);
+        #endif // HAL_LOGGING_ENABLED
+        break;
+    }
+}
+#endif // GPS_MOVING_BASELINE
+
 #endif // AP_GPS_NMEA_QUECTEL_ENABLED
 
 /*

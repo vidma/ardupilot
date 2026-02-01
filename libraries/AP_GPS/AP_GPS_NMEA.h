@@ -93,6 +93,7 @@ private:
         _GPS_SENTENCE_PQTMEPE = 330, // extension for Quectel, estimated position error
         _GPS_SENTENCE_PQTMVEL = 340, // extension for Quectel, velocity information
         _GPS_SENTENCE_PQTMPVT = 360, // extension for Quectel, PVT result
+        _GPS_SENTENCE_PQTMTAR = 380, // extension for Quectel, heading info, 12 fields
         _GPS_SENTENCE_OTHER = 0
     };
 
@@ -158,6 +159,9 @@ private:
     void parse_pqtmepe_field(uint16_t term_number, const char *term);
     void parse_pqtmvel_field(uint16_t term_number, const char *term);
     void parse_pqtmpvt_field(uint16_t term_number, const char *term);
+#if GPS_MOVING_BASELINE
+    void parse_pqtmtar_field(uint16_t term_number, const char *term);
+#endif // GPS_MOVING_BASELINE
 #endif
 
     uint8_t _parity;                                                    ///< NMEA message checksum accumulator
@@ -311,6 +315,24 @@ private:
         float sep;              // Geoidal separation (undulation)
         float pdop;             // PDOP (used for VDOP)
     } _pqtmpvt;
+
+    #if GPS_MOVING_BASELINE
+    // quectel PQTMTAR parsing
+    struct {
+        uint32_t time_ms;
+        int quality;
+        float baseline_length;
+        float heading;
+        float pitch;
+        float roll;
+        float heading_acc;
+        float pitch_acc;
+        float roll_acc;
+        int used_sv;
+        // fixme - is this needed?
+        // float heading_sd;
+    } _pqmtarheading;
+    #endif // GPS_MOVING_BASELINE
 
     uint32_t _last_PQTM_vel_ms;
     uint32_t _last_PQTM_acc_ms;
