@@ -888,16 +888,13 @@ void AP_GPS_NMEA::parse_pqtmver_field(uint16_t term_number, const char *term)
     
     switch (term_number) {
     case 1: // Version string (VerStr)
-        strncpy(pv.version, term, sizeof(pv.version)-1);
-        pv.version[sizeof(pv.version)-1] = 0;
+        strncpy(pv.version, term, sizeof(pv.version));
         break;
     case 2: // Build date (BuildDate)
-        strncpy(pv.build_date, term, sizeof(pv.build_date)-1);
-        pv.build_date[sizeof(pv.build_date)-1] = 0;
+        strncpy(pv.build_date, term, sizeof(pv.build_date));
         break;
     case 3: // Build time (BuildTime)
-        strncpy(pv.build_time, term, sizeof(pv.build_time)-1);
-        pv.build_time[sizeof(pv.build_time)-1] = 0;
+        strncpy(pv.build_time, term, sizeof(pv.build_time));
         _have_pqtmver = true;
         break;
     }
