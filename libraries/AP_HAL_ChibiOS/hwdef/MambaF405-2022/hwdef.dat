@@ -43,7 +43,9 @@ define AP_GPS_NMEA_QUECTEL_ENABLED 1
 # use LED strip pin as GPS PPS input
 undef PB3
 PB3  GPS_PPS INPUT FLOATING GPIO(56)
-#define HAL_GPIO_PPS 56
+define HAL_GPIO_PPS 56
 
 // for now we assume PPS is pre-configured with defaults
 //define CONFIGURE_PPS_PIN TRUE
+
+//define _AP_GPS_DEBUG_LOGGING_ENABLED 0
