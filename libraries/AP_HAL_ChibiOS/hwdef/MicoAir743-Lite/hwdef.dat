@@ -152,3 +152,13 @@ define HAL_OSD_TYPE_DEFAULT 5
 
 # setup for BF migration
 define HAL_FRAME_TYPE 12
+
+undef GPS_MOVING_BASELINE AP_GPS_NMEA_QUECTEL_ENABLED
+define GPS_MOVING_BASELINE 1
+define AP_GPS_NMEA_QUECTEL_ENABLED 1
+
+#  undef and define PPS pin
+undef PD14
+# fixme - consider PULLDOWN
+PD14  GPS_PPS INPUT FLOATING GPIO(64) #M15
+define HAL_GPIO_PPS 64
