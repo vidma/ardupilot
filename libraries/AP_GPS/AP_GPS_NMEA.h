@@ -332,6 +332,9 @@ private:
         // fixme - is this needed?
         // float heading_sd;
     } _pqmtarheading;
+    #if HAL_LOGGING_ENABLED
+    void log_GPS_Heading_pqtmtar();
+    #endif // HAL_LOGGING_ENABLED
     #endif // GPS_MOVING_BASELINE
 
     uint32_t _last_PQTM_vel_ms;
@@ -343,7 +346,7 @@ private:
 
     // last time we sent type specific config strings
     uint32_t last_config_ms;
-    uint32_t _last_pqmtar_log_ms;
+    uint32_t _last_pqmtar_log_ms = 0;
 
     uint8_t _pps_freq = 1;
 #ifdef HAL_GPIO_PPS

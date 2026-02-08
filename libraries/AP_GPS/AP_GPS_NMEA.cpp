@@ -1024,6 +1024,35 @@ void AP_GPS_NMEA::parse_pqtmpvt_field(uint16_t term_number, const char *term)
 
 #if GPS_MOVING_BASELINE
 
+#if HAL_LOGGING_ENABLED
+
+int16_t float_to_int16_100(float value)
+{
+    const float scale = 100.0f;
+    return (uint16_t)(value * scale);
+}
+void AP_GPS_NMEA::log_GPS_Heading_pqtmtar()
+{
+    auto &ph = _pqmtarheading;
+
+    struct log_GPS_Heading pkt {
+        LOG_PACKET_HEADER_INIT(LOG_GPS_Heading_MSG),
+        time_us                 : ph.time_ms * 1000, // convert from milliseconds to microseconds
+        instance                : 0U,  // FIXME !? should be logged from elsewhere?
+        quality                 : (uint8_t)ph.quality,
+        baseline_length_m       : float_to_int16_100(ph.baseline_length),
+        pitch_deg               : float_to_int16_100(ph.pitch),
+        roll_deg                : float_to_int16_100(ph.roll),
+        heading_deg             : float_to_int16_100(ph.heading),
+        pitch_acc_deg           : float_to_int16_100(ph.pitch_acc),
+        roll_acc_deg            : float_to_int16_100(ph.roll_acc),
+        heading_acc_deg         : float_to_int16_100(ph.heading_acc),
+        //used_sv                 : (uint16_t)ph.used_sv,
+    };
+    AP::logger().WriteBlock(&pkt, sizeof(pkt));
+}
+#endif // HAL_LOGGING_ENABLED
+
 /*
   parse PQTMTAR field - Outputs the time and attitude. The attitude computation in this message is computed from the two-antenna system.
   Only the LG580P supports this message.
@@ -1096,12 +1125,12 @@ void AP_GPS_NMEA::parse_pqtmtar_field(uint16_t term_number, const char *term)
         ph.used_sv = atoi(term);
         // ratelimit output
         const uint32_t now = AP_HAL::millis();
-        bool log_pqmtar = ph.quality >= 4; // only log when we have RTK fix
-        if ((now - _last_pqmtar_log_ms > 1000) && log_pqmtar) {
+        bool log_pqmtar = ph.quality == 4; // only log when we have RTK fix
+        bool log_each_30s = now - _last_pqmtar_log_ms > 30000;
+        if ((now - _last_pqmtar_log_ms > 5000) && (log_pqmtar || log_each_30s)) {
             _last_pqmtar_log_ms = now;
             GCS_SEND_TEXT(MAV_SEVERITY_INFO,
-                    "H q:%u b:%.1f p:%.1f r:%.1f h:%.1f",
-
+                    "H q:%d b:%.1f p:%.1f r:%.1f h:%.1f",
                     ph.quality,
                     ph.baseline_length,
                     ph.pitch,
@@ -1110,7 +1139,6 @@ void AP_GPS_NMEA::parse_pqtmtar_field(uint16_t term_number, const char *term)
                     );
             GCS_SEND_TEXT(MAV_SEVERITY_INFO,
                     "Q acc:%.1f %.1f %.1f",
-                    
                     ph.pitch_acc,
                     ph.roll_acc,
                     ph.heading_acc);
@@ -1143,47 +1171,11 @@ void AP_GPS_NMEA::parse_pqtmtar_field(uint16_t term_number, const char *term)
         }
 
         #if HAL_LOGGING_ENABLED
-        // FIXME: write to log
-        // ph.time_ms,
-        // ph.quality,
-        // ph.baseline_length,
-        // ph.pitch,
-        // ph.roll,
-        // ph.heading,
-        // ph.pitch_acc,
-        // ph.roll_acc,
-        // ph.heading_acc,
-        // ph.used_sv
-
-
-        // AP::logger().Write_MessageF("head %u q:%u b:%.1f p:%.1f r:%.1f h:%.1f",
-        //                             state.instance+1,
-        //                             ph.time_ms,
-        //                             ph.quality,
-        //                             ph.baseline_length,
-        //                             ph.pitch,
-        //                             ph.roll,
-        //                             ph.heading
-
-        //                             // ph.pitch_acc,
-        //                             // ph.roll_acc,
-        //                             // ph.heading_acc,
-        //                             // ph.used_sv
-        // );
-
-        // AP::logger().Write_MessageF("head acc:%.1f %.1f %.1f sv:%u",
-        //                             state.instance+1,
-        //                             //ph.time_ms,
-        //                             // ph.quality,
-        //                             // ph.baseline_length,
-        //                             // ph.pitch,
-        //                             // ph.roll,
-        //                             // ph.heading,
-        //                             ph.pitch_acc,
-        //                             ph.roll_acc,
-        //                             ph.heading_acc,
-        //                             ph.used_sv);
+        // FIXME: enable this only if RAW logging enabled?
+        // FIXME: should we log only when we have RTK fix? quality >= 4?
+        log_GPS_Heading_pqtmtar();
         #endif // HAL_LOGGING_ENABLED
+
         break;
     }
 }

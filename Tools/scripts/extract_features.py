@@ -86,6 +86,8 @@ class ExtractFeatures(BuildScriptBase):
             ('AP_GPS_NMEA_QUECTEL_ENABLED', r'AP_GPS_NMEA::parse_pqtmepe_field',),
             ('AP_GPS_NMEA_QUECTEL_ENABLED', r'AP_GPS_NMEA::parse_pqtmvel_field',),
             ('AP_GPS_NMEA_QUECTEL_ENABLED', r'AP_GPS_NMEA::parse_pqtmpvt_field',),
+            ('AP_GPS_NMEA_QUECTEL_ENABLED', r'AP_GPS_NMEA::parse_pqtmtar_field',),
+
             ('AP_GPS_{type}_ENABLED', r'AP_GPS_(?P<type>.*)::read\b',),
 
             ('AP_OPTICALFLOW_ENABLED', 'AP_OpticalFlow::AP_OpticalFlow',),
