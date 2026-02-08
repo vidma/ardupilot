@@ -10,6 +10,7 @@
     LOG_GPS_RAW_MSG,                            \
     LOG_GPS_RAWH_MSG,                           \
     LOG_GPS_RAWS_MSG,                           \
+    LOG_GPS_Heading_MSG,                        \
     LOG_GPS_UBX1_MSG,                           \
     LOG_GPS_UBX2_MSG,                           \
     LOG_IDS_FROM_GPS_SBP
@@ -83,6 +84,52 @@ struct PACKED log_GPA {
     uint16_t rtcm_fragments_used;
     uint16_t rtcm_fragments_discarded;
 };
+
+// @LoggerMessage: PPS
+// @Description: GPS PPS (pulse per second) information
+// @Field: TimeUS: Time since system startup
+// @Field: UTCTimeMS: GPS UTC time in milliseconds
+// @Field: ClockDriftPercent: PPS clock drift over last second (system time / 1 GPS second) * 100
+struct PACKED log_PPS {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint64_t utc_time_ms;
+    float clock_drift_percent;
+};
+
+/*
+  NMEA Quectel logging
+  From $PQTMTAR,<MsgVer>,<Time>,<Quality>,<Res>,<Length>,<Pitch>,<Roll>,<Heading>,<Acc_Pitch>,<Acc_Roll>,<Acc_Heading>,<UsedSV>*<Checksum><CR><LF>
+ */
+
+// @LoggerMessage: GHDG
+// @Description: GPS heading information from NMEA Quectel LG580P
+// @Field: TimeUS: GPS time in microseconds (accurate to the millisecond)
+// @Field: I: GPS instance number
+// @Field: Q: GPS Heading Quality (0-5, only 4 is useful)
+// @Field: Baseline: Baseline length in meters
+// @Field: Pitch: Pitch angle in degrees
+// @Field: Roll: Roll angle in degrees
+// @Field: Hdg: Heading in degrees
+// @Field: PitchA: Pitch accuracy in degrees
+// @Field: RollA: Roll accuracy in degrees
+// @Field: HdgA: Heading accuracy in degrees
+// @Field: SV: Satellites Number used for heading solution
+struct PACKED log_GPS_Heading {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t  instance;
+    uint8_t quality; // only 4 is usefl
+    int16_t  baseline_length_m;
+    int16_t  pitch_deg;
+    int16_t  roll_deg;
+    int16_t  heading_deg;
+    int16_t  pitch_acc_deg;
+    int16_t  roll_acc_deg;
+    int16_t  heading_acc_deg;
+    //uint16_t used_sv;
+};
+// 4+2+2*7+2 = 25 bytes
 
 /*
   UBlox logging
@@ -209,10 +256,17 @@ struct PACKED log_GPS_RAWS {
       "GPS",  "QBBIHBcLLeffffB", "TimeUS,I,Status,GMS,GWk,NSats,HDop,Lat,Lng,Alt,Spd,GCrs,VZ,Yaw,U", "s#-s-S-DUmnhnh-", "F--C-0BGGB000--" , true }, \
     { LOG_GPA_MSG,  sizeof(log_GPA), \
       "GPA",  "QBCCCCfBIHeHH", "TimeUS,I,VDop,HAcc,VAcc,SAcc,YAcc,VV,SMS,Delta,AEl,RTCMFU,RTCMFD", "s#-mmnd-ssm--", "F-BBBB0-CCB--" , true }, \
+    { LOG_PPS_MSG,  sizeof(log_PPS), \
+      "PPS",  "QQf", "TimeUS,UTCTimeMS,ClockDriftPercent", "ss%", "FC0" , true }, \
     { LOG_GPS_UBX1_MSG, sizeof(log_Ubx1), \
       "UBX1", "QBHBBHI",  "TimeUS,Instance,noisePerMS,jamInd,aPower,agcCnt,config", "s#-----", "F------"  , true }, \
     { LOG_GPS_UBX2_MSG, sizeof(log_Ubx2), \
       "UBX2", "QBbBbB", "TimeUS,Instance,ofsI,magI,ofsQ,magQ", "s#----", "F-----" , true }, \
+    { LOG_GPS_Heading_MSG, sizeof(log_GPS_Heading), \
+      "GPHDG", \
+      "QBBccccccc", "TimeUS,I,Q,Baseline,Pitch,Roll,Hdg,PitchA,RollA,HdgA", \
+      "s#-mddhddh", \
+      "F--BBBBBBB" , true }, \
     { LOG_GPS_RAW_MSG, sizeof(log_GPS_RAW), \
       "GRAW", "QIHBBddfBbB", "TimeUS,WkMS,Week,numSV,sv,cpMes,prMes,doMes,mesQI,cno,lli", "ss-S-------", "FC-0-------" , true }, \
     { LOG_GPS_RAWH_MSG, sizeof(log_GPS_RAWH), \
