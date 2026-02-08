@@ -792,6 +792,8 @@ private:
     // logging support
     void Write_GPS(uint8_t instance);
 
+    void Write_PPS(uint64_t interrupt_time_us, uint64_t earlier_interrupt_time_us);
+
 #if AP_GPS_RTCM_DECODE_ENABLED
     /*
       per mavlink channel RTCM decoder, enabled with RTCM decode

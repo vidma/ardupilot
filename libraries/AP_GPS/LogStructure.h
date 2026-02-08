@@ -6,6 +6,7 @@
 #define LOG_IDS_FROM_GPS                        \
     LOG_GPS_MSG,                                \
     LOG_GPA_MSG,                                \
+    LOG_PPS_MSG,                                \
     LOG_GPS_RAW_MSG,                            \
     LOG_GPS_RAWH_MSG,                           \
     LOG_GPS_RAWS_MSG,                           \

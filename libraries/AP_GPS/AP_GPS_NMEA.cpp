@@ -1447,7 +1447,20 @@ void AP_GPS_NMEA::Write_AP_Logger_Log_Startup_messages() const
 void
 AP_GPS_NMEA::pps_interrupt(uint8_t pin, bool high, uint32_t timestamp_us)
 {
-    _last_pps_time_us = AP_HAL::micros64();
+    uint64_t now_us = AP_HAL::micros64();
+    uint64_t earlier_pps_time_us = _last_pps_time_us;
+    _last_pps_time_us = now_us;
+
+    // FIXME: this is possibly rather nasty, but let's keep things simple for now
+    AP_GPS::get_singleton()->Write_PPS(now_us, earlier_pps_time_us);
+
+    // Onlt temporarily for debugging
+    // uint64_t pps_interval_us = now_us - earlier_pps_time_us;
+    // int64_t pps_drift_us = (int64_t)((int64_t)pps_interval_us - 1000000); // expected interval is 1 second
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO,
+    //             "PPS time drift=%lld us, at now=%llu us",
+    //             pps_drift_us, now_us);
+    // _last_pps_time_us = AP_HAL::micros64();
 }
 #endif // HAL_GPIO_PPS
 
