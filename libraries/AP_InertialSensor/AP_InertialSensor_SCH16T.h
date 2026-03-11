@@ -24,7 +24,10 @@ class AP_InertialSensor_SCH16T : public AP_InertialSensor_Backend {
 public:
     static AP_InertialSensor_Backend *probe(AP_InertialSensor &imu,
                                             AP_HAL::OwnPtr<AP_HAL::Device> dev,
-                                            enum Rotation rotation);
+                                            enum Rotation rotation,
+                                            uint8_t drdy_gpio,
+                                            uint8_t reset_gpio
+                                        );
 
     /**
      * Configure the sensors and start reading routine.
@@ -36,7 +39,10 @@ private:
 
     AP_InertialSensor_SCH16T(AP_InertialSensor &imu,
                                 AP_HAL::OwnPtr<AP_HAL::Device> dev,
-                                enum Rotation rotation);
+                                enum Rotation rotation,
+                                uint8_t _drdy_pin,
+                                uint8_t reset_pin
+                            );
 
     struct SensorData {
         int32_t acc_x;
@@ -71,8 +77,18 @@ private:
         uint16_t value;
     };
 
+    struct ReadStatus {
+        //bool is_ok;
+        bool warn_no_new_sample;
+        bool err_sample_inconsistent;
+    };
+
+
     void run_state_machine(void);
-    bool collect_and_publish();
+    void run_state_machine_non_periodic();
+    void loop_thread(void);
+
+    bool collect_and_publish(bool use_thread, uint64_t sample_time_us, ReadStatus *read_status);
 
     void reset_chip();
     bool read_product_id();
@@ -81,7 +97,10 @@ private:
     void configure_registers();
     bool validate_register_configuration();
 
-    bool read_data(SensorData *data);
+    void perform_read();
+    inline bool validate_frame_errors(uint64_t value);
+    inline bool validate_received_frame(uint64_t value, int &last_dcnt, ReadStatus *read_status);
+    bool read_data(SensorData *data, ReadStatus *read_status);
 
     void register_write(uint8_t addr, uint16_t value);
     uint64_t register_read(uint8_t addr);
@@ -107,8 +126,31 @@ private:
     uint8_t gyro_instance = {};
     enum Rotation rotation {};
     uint8_t drdy_pin {};
+    uint8_t reset_pin {};
 
     int failure_count {};
+
+    int earlier_dcnt = -1;
+    uint64_t num_missed_samples;
+    uint64_t num_ok_samples;
+    uint64_t num_inconsistent_samples;
+    uint64_t num_no_new_samples;
+
+    uint64_t total_dt = 0;
+    uint32_t min_dt = 100000;
+    uint32_t max_dt = 0;
+    uint64_t num_dt_items = 0;
+
+    uint32_t max_reporting_dt = 0;
+    uint32_t max_read_data_dt = 0;
+    uint32_t max_read_spi_dt = 0;
+    uint32_t max_crc8_dt = 0;
+
+    uint64_t num_wait;
+    uint64_t total_wait_time_us;
+
+    uint64_t num_drydry_ok = 0;
+
     float expected_sample_rate_hz {};
 
     float accel_scale {};
