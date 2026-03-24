@@ -1037,7 +1037,8 @@ void AP_GPS_NMEA::log_GPS_Heading_pqtmtar()
 
     struct log_GPS_Heading pkt {
         LOG_PACKET_HEADER_INIT(LOG_GPS_Heading_MSG),
-        time_us                 : ph.time_ms * 1000, // convert from milliseconds to microseconds
+        // FIXME: dont i need autopilot time here from bootup?
+        time_us                 : AP_HAL::micros64(), //ph.time_ms * 1000, // convert from milliseconds to microseconds
         instance                : 0U,  // FIXME !? should be logged from elsewhere?
         quality                 : (uint8_t)ph.quality,
         baseline_length_m       : float_to_int16_100(ph.baseline_length),
@@ -1144,12 +1145,17 @@ void AP_GPS_NMEA::parse_pqtmtar_field(uint16_t term_number, const char *term)
                     ph.heading_acc);
         }
         // FIXME: should be quality=4 only
-        bool accept_heading_quality = ph.quality == 4; // only accept when we have RTK fix
+        bool rtk_fixed = AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK_FIXED == state.status;
+        bool accept_heading_accuracy = true && ph.heading_acc < 2.0f && ph.heading_acc > 0.001; // only accept if we have a valid accuracy estimate
+        bool accept_heading_quality = true && rtk_fixed && ph.quality == 4 && accept_heading_accuracy; // only accept when we have RTK fix
+        
         if (accept_heading_quality) {
             // FIXME: should use this only when quality = 4
             // have a valid RTK fixed heading solution
 
             // FIXME: some shared logic with UNIHEADINGA parsing...
+            // FIXME: should validate!
+            state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK_FIXED;
             state.relPosHeading = ph.heading;
             state.relPosLength = ph.baseline_length;
             const float alt_diff = ph.baseline_length * tanf(radians(-ph.pitch));
