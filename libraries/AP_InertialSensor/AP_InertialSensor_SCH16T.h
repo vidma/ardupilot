@@ -132,7 +132,9 @@ private:
 
     int earlier_dcnt = -1;
     uint64_t num_missed_samples;
-    uint64_t num_ok_samples;
+    uint64_t num_ok_samples = 0;
+    uint64_t num_bad_samples = 0;
+
     uint64_t num_inconsistent_samples;
     uint64_t num_no_new_samples;
 

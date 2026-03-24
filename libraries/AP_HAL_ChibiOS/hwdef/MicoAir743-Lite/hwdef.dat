@@ -170,9 +170,13 @@ undef PE5
 undef PE6
 #not undef PB14
 #not undef PB15
-undef PA7
-undef PA6
+
 undef PB1 # M5 used as SCH16 reset pin
+
+# undef PWM6-7-8
+undef PB0
+undef PA7 # PWM7
+undef PA6 # PWM8
 
 # SPI4 - External IMU (green LED channel approach)
 # Wiring:
@@ -197,7 +201,7 @@ define SCH16T_RESET_PIN 54
 # 1*MHZ 2*MHZ is too slow
 # 10MHZ 10Mh` is failing ?
 # FIXME swicth to high speed mode later on? was 8 8
-SPIDEV  extsch16t     SPI4  DEVID1  SCH16T_CS     MODE0   2*MHZ 8*MHZ
+SPIDEV  extsch16t     SPI4  DEVID1  SCH16T_CS     MODE0   1*MHZ 8*MHZ
 
 # e.g.:
 #  IMU Invensensev3 SPI:icm45686 ROTATION_ROLL_180_YAW_90

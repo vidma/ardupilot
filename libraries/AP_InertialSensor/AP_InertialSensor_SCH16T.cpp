@@ -257,8 +257,12 @@ void AP_InertialSensor_SCH16T::start()
          */
         if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_InertialSensor_SCH16T::loop_thread, void),
                                           "SCH16T",
-                                          1024, AP_HAL::Scheduler::PRIORITY_BOOST, 1)) {
+                                          8192,AP_HAL::Scheduler::PRIORITY_BOOST, 1)) {
             AP_HAL::panic("Failed to create SCH16T thread");
+        }
+        hal.scheduler->delay(300); // give some time for the thread to start and gather some samples before we start the main loop
+        while(num_ok_samples < 100) {
+            hal.scheduler->delay(300);
         }
     }
 
@@ -267,8 +271,7 @@ void AP_InertialSensor_SCH16T::start()
 void sch16t_delay_us(uint32_t usec)
 {
     if (usec < 65535UL) {
-        hal.scheduler->delay_microseconds(usec);
-        return;
+        hal.scheduler->delay_microseconds((uint16_t) usec);
     } else {
         // for longer delays, we need to split into multiple calls, as it takes a uint16_t
         hal.scheduler->delay((uint16_t) (usec / (uint32_t)1000));
@@ -278,12 +281,13 @@ void sch16t_delay_us(uint32_t usec)
 
 
 void AP_InertialSensor_SCH16T::perform_read(){
-    // no semaphore here?
     const uint32_t period_us = (1000000UL / expected_sample_rate_hz) - 20U;
     ReadStatus read_status = {};
+    uint32_t last_reset_time = AP_HAL::micros();
     while(_state == State::Read) {
         uint32_t tstart = AP_HAL::micros();
-        WITH_SEMAPHORE(dev->get_semaphore());
+        bool collect_status = false;
+        
         uint32_t event_time = tstart;
         bool drdy_wait_ok = false;
         bool wait_ok = true;
@@ -296,8 +300,14 @@ void AP_InertialSensor_SCH16T::perform_read(){
             }
             event_time = AP_HAL::micros();
         }
+        
+        {
+            // minimize the time we hold the semaphore
+            // WITH_SEMAPHORE(dev->get_semaphore());
+            collect_status = collect_and_publish(true, event_time, &read_status);
+        }
         // FIMXE: getting huge variation in accel readings...
-        if (collect_and_publish(true, event_time, &read_status)) {
+        if (collect_status) {
             if (failure_count > 0) {
                 failure_count--;
             }
@@ -310,17 +320,58 @@ void AP_InertialSensor_SCH16T::perform_read(){
                 max_dt = max_dt < dt ? dt : max_dt;
             }
             num_ok_samples++;
-            // log status every few seconds
-            if (num_ok_samples % (1500*100) == 0) {
-                if (true) { 
-                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, 
-                        "SCH16T: %llu, %llu DRDY, %llu miss, %llu mixed, %llu no new, %d fail, avg_time=%llu us (min=%lu max=%lu, max report=%lu read=%lu crc8=%lu spi=%lu over %llu)",//, avg_wait=%llu us (over %llu)",
-                        num_ok_samples, num_drydry_ok, num_missed_samples, num_inconsistent_samples, num_no_new_samples, failure_count, 
-                        num_dt_items > 0 ? total_dt / num_dt_items : 0, min_dt, max_dt, max_reporting_dt, max_read_data_dt, max_crc8_dt, max_read_spi_dt, num_dt_items
-                        //num_wait > 0 ? total_wait_time_us / num_wait : 0, num_wait
-                    );
+        } else {
+            num_bad_samples++;
+            if (read_status.warn_no_new_sample) {
+                // we didn't get a new sample, but it's not an error, just wait for the next one
+                wait_ok = false;
+                num_no_new_samples++;
+                // read again almost immediately, expect that we'll get better alignment in time
+                // without delay here, sensor keeps restarting
+                if (drdy_pin == 0) {
+                    sch16t_delay_us(1);
                 }
+            } else {
+                // some other error, we should reset the sensor
+                failure_count++;
+            }
+        }
+
+        if (read_status.err_sample_inconsistent) {
+            // we got a sample but it was inconsistent (part of measurements is old), so we should try to read again immediately
+            // without waiting, as we might have just caught the sample in the middle of being updated
+            // and the next read might be consistent
+            wait_ok = false;
+            // if we have DRDY, do not restart on inconsistent sample, just wait for another DRDY
+            if (drdy_pin == 0){
+                failure_count++; 
+            }
+            num_inconsistent_samples++;
+            if (drdy_pin == 0) {
+                sch16t_delay_us(1);
+            }
+        }
+
+        // log status every few seconds
+        uint64_t num_samples = num_ok_samples + num_bad_samples;
+        if (num_samples % (1500*15) == 0) {
+            bool fishy = num_ok_samples != num_drydry_ok || num_missed_samples > 0 || num_no_new_samples > 0;
+            bool slightly_fishy = num_inconsistent_samples > 0;
+            bool max_counters = num_samples > 1500*60;
+            bool report_inconsistent_samples = slightly_fishy && max_counters; // 1min
+            bool reset_counters = fishy || max_counters;
+
+            if (fishy || report_inconsistent_samples) {
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, 
+                    "SCH16T: %llu, %llu DRDY, %llu miss, %llu mixed, %llu no new, %d fail, avg_time=%llu us (min=%lu max=%lu, max report=%lu read=%lu crc8=%lu spi=%lu over %llu)",//, avg_wait=%llu us (over %llu)",
+                    num_ok_samples, num_drydry_ok, num_missed_samples, num_inconsistent_samples, num_no_new_samples, failure_count, 
+                    num_dt_items > 0 ? total_dt / num_dt_items : 0, min_dt, max_dt, max_reporting_dt, max_read_data_dt, max_crc8_dt, max_read_spi_dt, num_dt_items
+                    //num_wait > 0 ? total_wait_time_us / num_wait : 0, num_wait
+                );
+            }
+            if (reset_counters) {
                 num_ok_samples = 0;
+                num_bad_samples = 0;
                 num_missed_samples = 0;
                 num_inconsistent_samples = 0;
                 num_no_new_samples = 0;
@@ -339,36 +390,19 @@ void AP_InertialSensor_SCH16T::perform_read(){
 
                 num_drydry_ok = 0;
             }
-        } else {
-            if (read_status.warn_no_new_sample) {
-                // we didn't get a new sample, but it's not an error, just wait for the next one
-                wait_ok = false;
-                num_no_new_samples++;
-                // read again almost immediately, expect that we'll get better alignment in time
-                // without delay here, sensor keeps restarting
-                if (drdy_pin == 0) {
-                    sch16t_delay_us(1);
-                }
-            } else if (read_status.err_sample_inconsistent) {
-                // we got a sample but it was inconsistent, so we should try to read again immediately
-                // without waiting, as we might have just caught the sample in the middle of being updated
-                // and the next read might be consistent
-                wait_ok = false;
-                failure_count++;
-                num_inconsistent_samples++;
-                if (drdy_pin == 0) {
-                    sch16t_delay_us(1);
-                }
-            } else {
-                // some other error, we should reset the sensor
-                failure_count++;
-            }
         }
 
         // Reset if successive failures
         if (failure_count > 100) {
-            _state = State::Reset;
-            return;
+            // do not reset more often than every few seconds
+            // important during startup
+            if (last_reset_time + 5000000UL < AP_HAL::micros()) {
+                last_reset_time = AP_HAL::micros();
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "SCH16T: resetting");
+                _state = State::Reset;
+                return;
+            }
+            failure_count = 0;
         } else {
             if (wait_ok) {
                 uint32_t dt = AP_HAL::micros() - tstart;
@@ -376,8 +410,7 @@ void AP_InertialSensor_SCH16T::perform_read(){
                 num_dt_items++;
                 total_dt += dt;
                 
-                // FIXME: this is strangely sensitive to -20U value
-                            
+                // FIXME: this is strangely sensitive to -20U value          
                 if (dt < period_us) {
                     uint32_t wait_us = period_us - dt;
                     if (!drdy_wait_ok || wait_us >= 1U) {
@@ -394,66 +427,111 @@ void AP_InertialSensor_SCH16T::perform_read(){
 
 void AP_InertialSensor_SCH16T::run_state_machine_non_periodic()
 {
-
-    WITH_SEMAPHORE(dev->get_semaphore());
-
     // like run_state_machine, just uses delay instead of periodic callback, 
     // to be used if the driver is configured to run in a thread instead of using periodic callbacks
     switch (_state) {
     case State::PowerOn: {
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SCH16T: poweron");
-            _state = State::Reset;
-            sch16t_delay_us(POWER_ON_TIME);
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SCH16T: poweron delay done");
+            bool next_step_reset = true;
+            if (next_step_reset) {
+                _state = State::Reset;
+                // at least if using external reset pin,
+                // no need to wait that long before initiating a reset?
+                if (reset_pin != 0) {
+                    sch16t_busywait_us(50*1000UL); // 1ms
+                } else {
+                    sch16t_busywait_us(POWER_ON_TIME);
+                }
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SCH16T: poweron delay done");
+            } else {
+                // skip reset and go straight to configuration, to save time on startup
+                // if it'll fail, it'll reset at the end of the "flow"
+                _state = State::Configure;
+                // 1ms voltage + 32ms NVM read and SPI setup
+                sch16t_busywait_us(RESET_TIME);
+            }
+
             break;
         }
 
     case State::Reset: {
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SCH16T: resetting");
+            //GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SCH16T: resetting");
             failure_count = 0;
-            reset_chip();
+            {
+                WITH_SEMAPHORE(dev->get_semaphore());
+                reset_chip();
+            }
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SCH16T: reset done");
             _state = State::Configure;
+            //sch16t_busywait_us(RESET_TIME); // maybe this too short?
             sch16t_delay_us(POWER_ON_TIME);
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SCH16T: reset delay done");
+            //GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SCH16T: reset done");
             break;
         }
     
     case State::Configure: {
-            if (!read_product_id()) {
+            bool product_id_ok = false;
+            {
+                WITH_SEMAPHORE(dev->get_semaphore());
+                product_id_ok = read_product_id();
+            }
+            
+            if (!product_id_ok) {
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "SCH16T: Product ID bad, resetting");
                 _state = State::Reset;
                 sch16t_delay_us(2000000); // 2s
                 break;
+            } else {
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SCH16T: Prod ID ok");
             }
 
-            configure_registers();
+            {
+                WITH_SEMAPHORE(dev->get_semaphore());
+                configure_registers(); 
+                // writes EN_SENSOR
+                // datasheet: need to wait 215ms
+            }
             _state = State::LockConfiguration;
-            sch16t_delay_us(POWER_ON_TIME);
+            sch16t_busywait_us(POWER_ON_TIME);
             break;
         }
 
     case State::LockConfiguration: {
-            read_status_registers(); // Read all status registers once
-            register_write(CTRL_MODE, (EOI | EN_SENSOR)); // Write EOI and EN_SENSOR
+            {
+                WITH_SEMAPHORE(dev->get_semaphore());
+                read_status_registers(); // Read all status registers once
+                register_write(CTRL_MODE, (EOI | EN_SENSOR)); // Write EOI and EN_SENSOR
+            }
             _state = State::Validate;
+             // datasheet: need to wait 3ms before validating registers
+            //sch16t_busywait_us(5000UL); 
             sch16t_delay_us(50000UL); // 50ms
             break;
         }
 
     case State::Validate: {
-            read_status_registers(); // Read all status registers twice
-            read_status_registers();
+            bool sensor_status_ok = false;
+            bool register_config_ok = false;
+            {
+                WITH_SEMAPHORE(dev->get_semaphore());
+                read_status_registers(); // Read all status registers twice
+                read_status_registers();
+                sensor_status_ok = validate_sensor_status();
+                // this reads registers so need to be inside the semaphore
+                register_config_ok = validate_register_configuration();
+            }
 
             // Check that registers are configured properly and that the sensor status is OK
-            if (validate_sensor_status() && validate_register_configuration()) {
+            if (sensor_status_ok && register_config_ok) {
                 _state = State::Read;
                 GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SCH16T: validated, will read");
             } else {
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, 
+                    "SCH16T: not validated (sensor %d, registers %d), resetting", 
+                    sensor_status_ok, register_config_ok);
                 _state = State::Reset;
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SCH16T: failed to validate, resetting again");
-                sch16t_delay_us(POWER_ON_TIME);
+                sch16t_busywait_us(POWER_ON_TIME);
             }
-
             break;
         }
 
@@ -468,10 +546,21 @@ void AP_InertialSensor_SCH16T::run_state_machine_non_periodic()
 
 void AP_InertialSensor_SCH16T::loop_thread(void)
 {
+    
     while (true) {
         if (_state == State::Read) {
+            {
+                WITH_SEMAPHORE(dev->get_semaphore());
+                dev->set_speed(AP_HAL::Device::SPEED_HIGH);
+                //dev->set_speed(AP_HAL::Device::SPEED_LOW);
+
+            }
             perform_read();
         } else {
+            {
+                WITH_SEMAPHORE(dev->get_semaphore());
+                dev->set_speed(AP_HAL::Device::SPEED_LOW);
+            }
             run_state_machine_non_periodic();
         }
         //hal.scheduler->delay_microseconds(T_STALL_US);
@@ -600,6 +689,8 @@ void AP_InertialSensor_SCH16T::reset_chip()
         palSetLine(reset_pin);
     } else {
         register_write(CTRL_RESET, SPI_SOFT_RESET);
+        // SPI Communication is not allowed during 2ms after SPI SOFTRESET.
+        sch16t_delay_us(2*1000UL);
     }
 }
 
@@ -622,6 +713,9 @@ inline bool AP_InertialSensor_SCH16T::validate_frame_errors(uint64_t value){
 
 inline bool AP_InertialSensor_SCH16T::validate_received_frame(uint64_t value, int &last_dcnt, ReadStatus *read_status)
 {
+    // FIXME: shall we allow reporting samples where part of measurement is old?
+    // maybe it's OK at least during init when load on MCU is larger?
+    bool allow_inconsistent_sample = true;
     if (!validate_frame_errors(value)) {
         return false;
     }
@@ -634,7 +728,9 @@ inline bool AP_InertialSensor_SCH16T::validate_received_frame(uint64_t value, in
     if (last_dcnt != -1 && data_counter != last_dcnt) {
         read_status->warn_no_new_sample = false;
         read_status->err_sample_inconsistent = true;
-        return false;
+        if (!allow_inconsistent_sample) {
+            return false;
+        }
     }
 
     // check that we have a new sample, otherwise we are reading the same sample again, which is not good
@@ -707,6 +803,7 @@ bool AP_InertialSensor_SCH16T::read_data(SensorData *data, ReadStatus *read_stat
     if (!validate_received_frame(gyro_x, last_dcnt, read_status)) return false;
     if (!validate_received_frame(gyro_y, last_dcnt, read_status)) return false;
     if (!validate_received_frame(gyro_z, last_dcnt, read_status)) return false;
+    last_dcnt = -1; // ignore accel & gyro having different data counters ?
     if (!validate_received_frame(acc_x, last_dcnt, read_status)) return false;
     if (!validate_received_frame(acc_y, last_dcnt, read_status)) return false;
     if (!validate_received_frame(acc_z, last_dcnt, read_status)) return false;
@@ -794,6 +891,34 @@ void AP_InertialSensor_SCH16T::configure_registers()
 
     uint16_t reg_value;
     reg_value = SPI48_DATA_UINT16(register_read(CTRL_USER_IF));
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "CTRL_USER_IF before DRDY: 0x%04X", reg_value);
+    // this has read 0000
+    // Maybe we need to reset the registers to defaults?
+
+    // [13:12] 
+    // Typical delay time of 1st level status clearance. When user reads data register, the
+    // associated 1st level status register is cleared after TDEL.
+    // 00 - 0.078 ms
+    // 01 - 0.625 ms
+    // 10 - 2.5 ms (default)
+    // 11 – 5 ms
+    #define FTREE_TDEL_DEFAULT (1 << 13) // 2.5ms (default)
+    reg_value |= FTREE_TDEL_DEFAULT;
+
+    // MISO_SR_CTRL MISO Slew Rate control [3:3] 
+    // 0 - SR control disabled without static current (fast rise/fall time ~<1ns). (Contact
+    // sales office before enabling)
+    // 1 - SR control enabled with static current (default)
+    #define MISO_SR_CTRL_DEFAULT (1 << 3)
+    reg_value |= MISO_SR_CTRL_DEFAULT;
+
+    // DRY_SR_CTRL DRY Slew Rate control [2:2]
+    // 0 - SR control disabled without static current (fast rise/fall time ~<1ns). (Contact
+    // sales office before enabling)
+    // 1 - SR control enabled with static current (default)
+    #define DRY_SR_CTRL_DEFAULT (1 << 2)
+    reg_value |= DRY_SR_CTRL_DEFAULT;
+
     if (drdy_pin != 0) {
         reg_value |= DRY_DRV_EN; // Enable data ready function on the DRDY pin
     } else {
