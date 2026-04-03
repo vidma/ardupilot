@@ -168,7 +168,7 @@ AP_InertialSensor_SCH16T::AP_InertialSensor_SCH16T(AP_InertialSensor &imu,
     , dev(std::move(_dev))
     , rotation(_rotation)
     , drdy_pin(_drdy_pin)
-    , reset_pin(0) // FIXME _reset_pin - forced not to use hw reset for now.
+    , reset_pin(_reset_pin)
     , chip_variant(_chip_variant)
 {
     // on K01:  according to datasheet,
