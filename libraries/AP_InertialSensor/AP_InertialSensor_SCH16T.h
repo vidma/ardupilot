@@ -26,7 +26,8 @@ public:
                                             AP_HAL::OwnPtr<AP_HAL::Device> dev,
                                             enum Rotation rotation,
                                             uint8_t drdy_gpio,
-                                            uint8_t reset_gpio
+                                            uint8_t reset_gpio,
+                                            uint8_t _chip_variant
                                         );
 
     /**
@@ -41,7 +42,8 @@ private:
                                 AP_HAL::OwnPtr<AP_HAL::Device> dev,
                                 enum Rotation rotation,
                                 uint8_t _drdy_pin,
-                                uint8_t reset_pin
+                                uint8_t reset_pin,
+                                uint8_t _chip_variant
                             );
 
     struct SensorData {
@@ -127,6 +129,7 @@ private:
     enum Rotation rotation {};
     uint8_t drdy_pin {};
     uint8_t reset_pin {};
+    uint8_t chip_variant {}; // 1 - K01, 10 - K10, 20 - K20
 
     int failure_count {};
 

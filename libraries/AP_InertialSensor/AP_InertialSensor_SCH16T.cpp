@@ -97,8 +97,11 @@ static constexpr uint16_t ACC12_8G_1475HZ    = 0b0001001011011011;  // Acc XYZ r
 
 
 static constexpr uint16_t ACC3_26G = (0b000 << 0); // Data is 3 bit, default. 
+// Writing 4b1010 to this field generates a SPI soft reset. SPI Communication is not
+// allowed during 2ms after SPI SOFTRESET.
 static constexpr uint16_t SPI_SOFT_RESET = (0b1010);
-static constexpr uint32_t POWER_ON_TIME = 250000UL;
+static constexpr uint32_t POWER_ON_TIME = 250000UL + 5000UL;
+static constexpr uint32_t RESET_TIME = 60000UL; // 33 ms max reset time according to datasheet, we wait more to be safe
 
 // Data registers
 #define RATE_X1         0x01 // 20 bit
@@ -158,12 +161,15 @@ AP_InertialSensor_SCH16T::AP_InertialSensor_SCH16T(AP_InertialSensor &imu,
                                                          AP_HAL::OwnPtr<AP_HAL::Device> _dev,
                                                          enum Rotation _rotation,
                                                          uint8_t _drdy_pin,
-                                                        uint8_t _reset_pin)
+                                                         uint8_t _reset_pin,
+                                                         uint8_t _chip_variant
+                                                    )
     : AP_InertialSensor_Backend(imu)
     , dev(std::move(_dev))
     , rotation(_rotation)
     , drdy_pin(_drdy_pin)
-    , reset_pin(_reset_pin)
+    , reset_pin(0) // FIXME _reset_pin - forced not to use hw reset for now.
+    , chip_variant(_chip_variant)
 {
     // on K01:  according to datasheet,
     // the update rate is 23.6/X (1 kHz max) where X is the decimation factor set in the control registers. 
@@ -191,7 +197,22 @@ AP_InertialSensor_SCH16T::AP_InertialSensor_SCH16T(AP_InertialSensor &imu,
     // if using ACC2 with 8G range, the sensitivity is 3200 LSB/(m/s^2), so accel_scale = 1.f / 3200.f;
     accel_scale = 1.f / 3200.f;
 
-    gyro_scale = radians(1.f / 1600.f);
+    // if K10 - 100, 200, 400 -> 200 @ 1.475kHz ODR, so gyro_scale = 1.f / 200.f;
+        // case 100:
+        //     return 0x02;   // 010
+        // case 200:
+        //     return 0x03;   // 011      
+        // case 400:
+        //     return 0x04;   // 100
+    if (chip_variant == 10) {
+        // 200 @ 1.475kHz ODR
+        // 200 LSB/(deg/s) ?, so gyro_scale = 1.f / 200.f;
+        gyro_scale = 1.f / 200.f;
+        //accel_scale = 1.f / 1600.f;
+    } else {
+        // if K01 - 1600 LSB/(deg/s), so  gyro_scale = 1.f / 1600.f;
+        gyro_scale = 1.f / 1600.f;
+    }
 
     _registers[0] = RegisterConfig(CTRL_FILT_RATE,  FILTER_BYPASS);
     _registers[1] = RegisterConfig(CTRL_FILT_ACC12, FILTER_BYPASS);
@@ -216,15 +237,17 @@ AP_InertialSensor_SCH16T::probe(AP_InertialSensor &imu,
                                    AP_HAL::OwnPtr<AP_HAL::Device> dev,
                                    enum Rotation rotation,
                                    uint8_t drdy_gpio,
-                                   uint8_t reset_gpio
+                                   uint8_t reset_gpio,
+                                   uint8_t _chip_variant
                                 )
 {
     if (!dev) {
         return nullptr;
     }
 
-    auto sensor = new AP_InertialSensor_SCH16T(imu, std::move(dev), rotation, drdy_gpio, reset_gpio);
+    auto sensor = new AP_InertialSensor_SCH16T(imu, std::move(dev), rotation, drdy_gpio, reset_gpio, _chip_variant);
 
+    // FIXME: sensor should be validated here!!!
     if (!sensor) {
         return nullptr;
     }
@@ -303,7 +326,7 @@ void AP_InertialSensor_SCH16T::perform_read(){
         
         {
             // minimize the time we hold the semaphore
-            // WITH_SEMAPHORE(dev->get_semaphore());
+            WITH_SEMAPHORE(dev->get_semaphore());
             collect_status = collect_and_publish(true, event_time, &read_status);
         }
         // FIMXE: getting huge variation in accel readings...
@@ -438,9 +461,9 @@ void AP_InertialSensor_SCH16T::run_state_machine_non_periodic()
                 // at least if using external reset pin,
                 // no need to wait that long before initiating a reset?
                 if (reset_pin != 0) {
-                    sch16t_busywait_us(50*1000UL); // 1ms
+                    sch16t_delay_us(50*1000UL); // 1ms
                 } else {
-                    sch16t_busywait_us(POWER_ON_TIME);
+                    sch16t_delay_us(POWER_ON_TIME);
                 }
                 GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SCH16T: poweron delay done");
             } else {
@@ -448,7 +471,7 @@ void AP_InertialSensor_SCH16T::run_state_machine_non_periodic()
                 // if it'll fail, it'll reset at the end of the "flow"
                 _state = State::Configure;
                 // 1ms voltage + 32ms NVM read and SPI setup
-                sch16t_busywait_us(RESET_TIME);
+                sch16t_delay_us(RESET_TIME);
             }
 
             break;
@@ -463,7 +486,6 @@ void AP_InertialSensor_SCH16T::run_state_machine_non_periodic()
             }
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SCH16T: reset done");
             _state = State::Configure;
-            //sch16t_busywait_us(RESET_TIME); // maybe this too short?
             sch16t_delay_us(POWER_ON_TIME);
             //GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SCH16T: reset done");
             break;
@@ -492,7 +514,7 @@ void AP_InertialSensor_SCH16T::run_state_machine_non_periodic()
                 // datasheet: need to wait 215ms
             }
             _state = State::LockConfiguration;
-            sch16t_busywait_us(POWER_ON_TIME);
+            sch16t_delay_us(POWER_ON_TIME);
             break;
         }
 
@@ -504,7 +526,6 @@ void AP_InertialSensor_SCH16T::run_state_machine_non_periodic()
             }
             _state = State::Validate;
              // datasheet: need to wait 3ms before validating registers
-            //sch16t_busywait_us(5000UL); 
             sch16t_delay_us(50000UL); // 50ms
             break;
         }
@@ -530,7 +551,7 @@ void AP_InertialSensor_SCH16T::run_state_machine_non_periodic()
                     "SCH16T: not validated (sensor %d, registers %d), resetting", 
                     sensor_status_ok, register_config_ok);
                 _state = State::Reset;
-                sch16t_busywait_us(POWER_ON_TIME);
+                sch16t_delay_us(POWER_ON_TIME);
             }
             break;
         }
@@ -685,7 +706,8 @@ void AP_InertialSensor_SCH16T::reset_chip()
 {
     if (reset_pin != 0) {
         palClearLine(reset_pin);
-        hal.scheduler->delay(2000);
+        //hal.scheduler->delay(2000);
+        sch16t_delay_us(40*1000UL);
         palSetLine(reset_pin);
     } else {
         register_write(CTRL_RESET, SPI_SOFT_RESET);
@@ -781,6 +803,7 @@ bool AP_InertialSensor_SCH16T::read_data(SensorData *data, ReadStatus *read_stat
 
     // Check errors & Validate data counter early on, so we can read again later with minimum delay
     int last_dcnt = -1;
+    // FIXME: is it better to first read gyro or accel?
     register_read(RATE_X2);
     uint64_t gyro_x = register_read(RATE_Y2);
     //if (!validate_received_frame(gyro_x, last_dcnt, read_status)) return false;
@@ -794,6 +817,8 @@ bool AP_InertialSensor_SCH16T::read_data(SensorData *data, ReadStatus *read_stat
     //if (!validate_received_frame(acc_y, last_dcnt, read_status)) return false;
     uint64_t acc_z  = register_read(TEMP);
     //if (!validate_received_frame(acc_z, last_dcnt, read_status)) return false;
+
+    // FIXME: could report temperature at lower rate to save some SPI time... ?
     uint64_t temp   = register_read(TEMP);
 
     uint32_t read_spi_end = AP_HAL::micros();
@@ -803,7 +828,12 @@ bool AP_InertialSensor_SCH16T::read_data(SensorData *data, ReadStatus *read_stat
     if (!validate_received_frame(gyro_x, last_dcnt, read_status)) return false;
     if (!validate_received_frame(gyro_y, last_dcnt, read_status)) return false;
     if (!validate_received_frame(gyro_z, last_dcnt, read_status)) return false;
-    last_dcnt = -1; // ignore accel & gyro having different data counters ?
+    // FIXME: it seems DATA_COUNTER (DCNT) probably should be the same for gyro and accel,
+    // but most time I was getting different data counter for gyro and accel,
+    // though within gyro, or within the accel, the data counter was consistent. 
+    // So for now I'm checking data counter consistency only within gyro and accel.
+    // Is this due to scheduler/interrupt delay after DRY? or IMU config issue? 
+    last_dcnt = -1;
     if (!validate_received_frame(acc_x, last_dcnt, read_status)) return false;
     if (!validate_received_frame(acc_y, last_dcnt, read_status)) return false;
     if (!validate_received_frame(acc_z, last_dcnt, read_status)) return false;
@@ -875,12 +905,23 @@ bool AP_InertialSensor_SCH16T::read_product_id()
     //bool success = asic_id == 0x20 && comp_id == 0x17;
     // asic_id - ASIC revision
     // comp_id - Component type
+
     bool ok = asic_id == 0x21 || comp_id == 0x23;
+    // FIXME: could also auto-detect the variant here based on the IDs, but for now passing _chip_variant from the constructor (hwdef)
+    if ((asic_id == 0x21 && comp_id == 0x23) || (asic_id == 0x20 && comp_id == 0x17)) {
+		// ASIC_ID = 0x21, COMP_ID = 0x23 is a K01 variant of REV_1
+		// ASIC_ID = 0x20, COMP_ID = 0x17 is a B13 variant of REV_1
+		//_detected_version = ChipVersion::REV_1;
+        ok = true;
+	} else if ((asic_id == 0x21 && comp_id == 0x24) || (asic_id == 0x21 && comp_id == 0x21)) {
+		// ASIC_ID = 0x21, COMP_ID = 0x24 is a B10 variant of REV_2
+		// ASIC_ID = 0x21, COMP_ID = 0x21 is a production K10 variant of REV_2
+		//_detected_version = ChipVersion::REV_2;
+        ok = true;
+    }
 
     // FIXME why? Some users report that the chip returns 0 for both ASIC_ID and COMP_ID after power on, but then works fine after a reset. This may be a silicon bug or an issue with the power supply ramping up too slowly. In either case, treat this as a non-fatal error and allow the state machine to continue to the configuration step, where we will check the IDs again and reset if they are still wrong.
     return ok;
-
-    //return success;
 }
 
 void AP_InertialSensor_SCH16T::configure_registers()
@@ -892,8 +933,11 @@ void AP_InertialSensor_SCH16T::configure_registers()
     uint16_t reg_value;
     reg_value = SPI48_DATA_UINT16(register_read(CTRL_USER_IF));
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "CTRL_USER_IF before DRDY: 0x%04X", reg_value);
+
     // this has read 0000
     // Maybe we need to reset the registers to defaults?
+
+    // Force/reset default IMU config values (according to K01 datasheet):
 
     // [13:12] 
     // Typical delay time of 1st level status clearance. When user reads data register, the
