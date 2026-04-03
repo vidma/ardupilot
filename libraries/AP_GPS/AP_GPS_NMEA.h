@@ -89,6 +89,11 @@ private:
         _GPS_SENTENCE_AGRICA = 193, // extension for Unicore, 65 fields
         _GPS_SENTENCE_VERSIONA = 270, // extension for Unicore, version, 10 fields
         _GPS_SENTENCE_UNIHEADINGA = 290, // extension for Unicore, uniheadinga, 20 fields
+        _GPS_SENTENCE_PQTMVER = 320, // extension for Quectel, version info
+        _GPS_SENTENCE_PQTMEPE = 330, // extension for Quectel, estimated position error
+        _GPS_SENTENCE_PQTMVEL = 340, // extension for Quectel, velocity information
+        _GPS_SENTENCE_PQTMPVT = 360, // extension for Quectel, PVT result
+        _GPS_SENTENCE_PQTMTAR = 380, // extension for Quectel, heading info, 12 fields
         _GPS_SENTENCE_OTHER = 0
     };
 
@@ -146,6 +151,18 @@ private:
 #endif
 #endif
 
+#if AP_GPS_NMEA_QUECTEL_ENABLED
+    /*
+      parse PQTM message fields
+     */
+    void parse_pqtmver_field(uint16_t term_number, const char *term);
+    void parse_pqtmepe_field(uint16_t term_number, const char *term);
+    void parse_pqtmvel_field(uint16_t term_number, const char *term);
+    void parse_pqtmpvt_field(uint16_t term_number, const char *term);
+#if GPS_MOVING_BASELINE
+    void parse_pqtmtar_field(uint16_t term_number, const char *term);
+#endif // GPS_MOVING_BASELINE
+#endif
 
     uint8_t _parity;                                                    ///< NMEA message checksum accumulator
     uint32_t _crc32;                                            ///< CRC for unicore messages
@@ -257,10 +274,85 @@ private:
     } _uniheadinga;
 #endif
 #endif // AP_GPS_NMEA_UNICORE_ENABLED
+
+#if AP_GPS_NMEA_QUECTEL_ENABLED
+    /*
+      Quectel PQTM message parsing structures
+     */
+    // PQTMVER parsing
+    struct {
+        char version[30];        // Version string (e.g., "LG290P03AANR01A05S")
+        char build_date[20];     // Build date (e.g., "2025/05/08")
+        char build_time[20];     // Build time (e.g., "16:23:00")
+    } _pqtmver;
+    bool _have_pqtmver;
+
+    // PQTMEPE parsing - Estimated Position Error
+    struct {
+        float epe_north;
+        float epe_east;
+        float epe_down;
+        float epe_2d;
+        float epe_3d;
+    } _pqtmepe;
+
+    // PQTMVEL parsing - Velocity Information
+    struct {
+        uint32_t time_ms;
+        Vector3f vel_NED;
+        float ground_speed;
+        float speed_3d;
+        float heading;
+        float ground_speed_acc;
+        float speed_acc;
+        float heading_acc;
+    } _pqtmvel;
+
+    // PQTMPVT parsing - PVT Result
+    struct {
+        uint32_t tow;           // Time of week
+        int32_t leap_seconds;   // Leap seconds
+        float sep;              // Geoidal separation (undulation)
+        float pdop;             // PDOP (used for VDOP)
+    } _pqtmpvt;
+
+    #if GPS_MOVING_BASELINE
+    // quectel PQTMTAR parsing
+    struct {
+        uint32_t time_ms;
+        int quality;
+        float baseline_length;
+        float heading;
+        float pitch;
+        float roll;
+        float heading_acc;
+        float pitch_acc;
+        float roll_acc;
+        int used_sv;
+        // fixme - is this needed?
+        // float heading_sd;
+    } _pqmtarheading;
+    #if HAL_LOGGING_ENABLED
+    void log_GPS_Heading_pqtmtar();
+    #endif // HAL_LOGGING_ENABLED
+    #endif // GPS_MOVING_BASELINE
+
+    uint32_t _last_PQTM_vel_ms;
+    uint32_t _last_PQTM_acc_ms;
+    bool _expect_pqtm;
+#endif  // AP_GPS_NMEA_QUECTEL_ENABLED
+
     bool _expect_agrica;
 
     // last time we sent type specific config strings
     uint32_t last_config_ms;
+    uint32_t _last_pqmtar_log_ms = 0;
+
+    uint8_t _pps_freq = 1;
+#ifdef HAL_GPIO_PPS
+    void pps_interrupt(uint8_t pin, bool high, uint32_t timestamp_us);
+    //void set_pps_desired_freq(uint8_t freq) override;
+#endif
 
     // send type specific config strings
     void send_config(void);

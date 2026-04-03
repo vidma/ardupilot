@@ -112,6 +112,7 @@ public:
         GPS_TYPE_UNICORE_NMEA = 24,
         GPS_TYPE_UNICORE_MOVINGBASE_NMEA = 25,
         GPS_TYPE_SBF_DUAL_ANTENNA = 26,
+        GPS_TYPE_QUECTEL_NMEA = 27,
 #if AP_SIM_GPS_ENABLED
         GPS_TYPE_SITL = 100,
 #endif
@@ -790,6 +791,8 @@ private:
 
     // logging support
     void Write_GPS(uint8_t instance);
+
+    void Write_PPS(uint64_t interrupt_time_us, uint64_t earlier_interrupt_time_us);
 
 #if AP_GPS_RTCM_DECODE_ENABLED
     /*

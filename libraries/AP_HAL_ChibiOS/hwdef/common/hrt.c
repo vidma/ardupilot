@@ -27,6 +27,33 @@
 
 #include "../../../AP_Math/div1000.h"
 
+#ifndef AP_CLOCK_CORRECTION_PPM
+#define AP_CLOCK_CORRECTION_PPM 0
+#endif
+
+static inline uint64_t clock_correct_us(uint64_t us)
+{
+#if AP_CLOCK_CORRECTION_PPM > 0
+    // clock is fast: return a slightly smaller time
+    return us - (us * (uint64_t)AP_CLOCK_CORRECTION_PPM) / 1000000ULL;
+#elif AP_CLOCK_CORRECTION_PPM < 0
+    // clock is slow: return a slightly larger time
+    return us + (us * (uint64_t)(-AP_CLOCK_CORRECTION_PPM)) / 1000000ULL;
+#else
+    return us;
+#endif
+}
+
+static inline uint32_t clock_correct_us32(uint32_t us)
+{
+#if AP_CLOCK_CORRECTION_PPM != 0
+    return (uint32_t)clock_correct_us((uint64_t)us);
+#else
+    return us;
+#endif
+}
+
+
 /*
   we have 4 possible configurations of boards, made up of boards that
   have the following properties:
@@ -64,7 +91,7 @@ static uint32_t system_time_u32_us(void)
 #if CH_CFG_ST_FREQUENCY != 1000000U
     now *= 1000000U/CH_CFG_ST_FREQUENCY;
 #endif
-    return now;
+    return clock_correct_us32(now);
 }
 #else
 #error "unsupported timer resolution"
@@ -93,7 +120,7 @@ static uint64_t hrt_micros64I(void)
 #ifdef AP_BOARD_START_TIME
     ret += AP_BOARD_START_TIME;
 #endif
-    return ret;
+    return clock_correct_us(ret);
 }
 
 static inline bool is_locked(void) {

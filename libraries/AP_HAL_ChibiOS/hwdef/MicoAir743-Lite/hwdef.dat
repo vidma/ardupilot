@@ -120,17 +120,17 @@ PC11 SDMMC1_D3  SDMMC1
 define FATFS_HAL_DEVICE SDCD1
 
 # SPI3 - ICM45686
-PB3  SPI3_SCK      SPI3
-PB4  SPI3_MISO     SPI3
-PD6  SPI3_MOSI     SPI3
-PD4  ICM45686_CS   CS
-PD5  ICM45686_DRDY INPUT
+#PB3  SPI3_SCK      SPI3
+#PB4  SPI3_MISO     SPI3
+#PD6  SPI3_MOSI     SPI3
+#PD4  ICM45686_CS   CS
+#PD5  ICM45686_DRDY INPUT
 
 # SPI devices
-SPIDEV  icm45686    SPI3  DEVID1  ICM45686_CS    MODE3   2*MHZ 8*MHZ
+#SPIDEV  icm45686    SPI3  DEVID1  ICM45686_CS    MODE3   2*MHZ 8*MHZ
 
 # 2 IMUs
-IMU Invensensev3 SPI:icm45686 ROTATION_ROLL_180_YAW_90
+#IMU Invensensev3 SPI:icm45686 ROTATION_ROLL_180_YAW_90
 
 # barometers
 BARO SPL06 I2C:0:0x77
@@ -152,3 +152,76 @@ define HAL_OSD_TYPE_DEFAULT 5
 
 # setup for BF migration
 define HAL_FRAME_TYPE 12
+
+undef GPS_MOVING_BASELINE AP_GPS_NMEA_QUECTEL_ENABLED
+define GPS_MOVING_BASELINE 1
+define AP_GPS_NMEA_QUECTEL_ENABLED 1
+
+#  undef and define PPS pin
+undef PD14
+# fixme - consider PULLDOWN
+PD14  GPS_PPS INPUT FLOATING GPIO(64) #M15
+define HAL_GPIO_PPS 64
+
+
+# SCH16T and fake external SPI
+undef PE2
+undef PE5
+undef PE6
+#not undef PB14
+#not undef PB15
+
+undef PB1 # M5 used as SCH16 reset pin
+
+# undef PWM6-7-8
+undef PB0
+undef PA7 # PWM7
+undef PA6 # PWM8
+
+# SPI4 - External IMU (green LED channel approach)
+# Wiring:
+#   SCK  = PE2  (tap the MCU-side of the GREEN LED series resistor after removing it)
+#PA7  TIM3_CH2  TIM3  PWM(7)  GPIO(56) BIDIR
+#PA6  TIM3_CH1  TIM3  PWM(8)  GPIO(57)
+#   CS   = PA7  (M7 signal pin)
+#   DRDY = PA6  (M8 signal pin)
+#   MISO = PE5  (M9 signal pin)
+#   MOSI = PE6  (M10 signal pin)
+PE2  SPI4_SCK      SPI4
+PE5  SPI4_MISO     SPI4
+PE6  SPI4_MOSI     SPI4
+PA7  SCH16T_CS    CS
+PA6 SCH16T_DRDY  INPUT GPIO(57) # M8
+define SCH16T_DRDY_PIN 57
+
+PB1 SCH16T_RESET  OUTPUT HIGH GPIO(54) # M5
+define SCH16T_RESET_PIN 54
+define SCH16T_RESET_PIN_DISABLED 0
+
+
+# 1*MHZ 2*MHZ is too slow
+# 10MHZ 10Mh` is failing ?
+# FIXME swicth to high speed mode later on? was 8 8
+SPIDEV  extsch16t     SPI4  DEVID1  SCH16T_CS     MODE0   1*MHZ 8*MHZ
+
+# e.g.:
+#  IMU Invensensev3 SPI:icm45686 ROTATION_ROLL_180_YAW_90
+# IMU <driver> SPI:ext_imu ROTATION_ROLL_180_YAW_90
+
+define SCH16T_K01 1
+define SCH16T_K10 10
+
+IMU SCH16T      SPI:extsch16t ROTATION_YAW_180 SCH16T_DRDY_PIN SCH16T_RESET_PIN_DISABLED SCH16T_K10
+
+define AP_CLOCK_CORRECTION_PPM 1700
+
+# hack the frequency to match PPS?
+#undef CH_CFG_ST_FREQUENCY
+#define CH_CFG_ST_FREQUENCY 1001700
+#undef CH_CFG_ST_RESOLUTION
+#define CH_CFG_ST_RESOLUTION 32
+
+
+//undef OSCILLATOR_HZ
+//OSCILLATOR_HZ 8013600
+

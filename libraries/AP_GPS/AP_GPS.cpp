@@ -809,6 +809,9 @@ AP_GPS_Backend *AP_GPS::_detect_instance(const uint8_t instance)
                     type == GPS_TYPE_UNICORE_NMEA ||
                     type == GPS_TYPE_UNICORE_MOVINGBASE_NMEA ||
 #endif
+#if AP_GPS_NMEA_QUECTEL_ENABLED
+                    type == GPS_TYPE_QUECTEL_NMEA ||
+#endif
                     type == GPS_TYPE_ALLYSTAR) &&
                    AP_GPS_NMEA::_detect(dstate->nmea_detect_state, data)) {
             return NEW_NOTHROW AP_GPS_NMEA(*this, params[instance], state[instance], port);
@@ -1949,6 +1952,48 @@ void AP_GPS::Write_GPS(uint8_t i)
         rtcm_fragments_discarded: rtcm_stats.fragments_discarded
     };
     AP::logger().WriteBlock(&pkt2, sizeof(pkt2));
+}
+
+void AP_GPS::Write_PPS(uint64_t interrupt_time_us, uint64_t earlier_interrupt_time_us)
+{
+
+    const uint64_t USEC_PER_SEC = 1000000ULL;
+    const float clock_drift_percent = (((float)interrupt_time_us - (float)earlier_interrupt_time_us) - (float)USEC_PER_SEC) * 100.0f / ((float)USEC_PER_SEC);
+
+    // FIXME: should it be dependent on GPS instance? but makes little sense
+    uint8_t instance = 0; // FIXME?
+
+    const GPS_State &istate = state[instance];
+
+    // it makes no sense to report PPS if there's no GPS FIX
+    if ((istate.last_gps_time_ms == 0 && istate.last_corrected_gps_time_us == 0) || istate.time_week == 0) {
+        return;
+    }
+    uint64_t _last_gps_systime_us = istate.last_gps_time_ms * 1000ULL; ///< the system time we got the last GPS timestamp, microseconds
+
+    // FIXME: check if fix still exists!?
+    uint64_t last_gps_fix_time_us = istate_time_to_epoch_ms(istate.time_week, istate.time_week_ms) * 1000ULL; // last GPS time
+
+    // GPS UTC time when the GPIO interrupt was triggered
+	// Last UTC time received from the GPS + elapsed time to the PPS interrupt
+
+    // FIXME: I possibly don't understand what this correction is used for? (based on PX4 PPSCpature driver)
+    // oh it's probably needed in case the GPS time was not received but PPS still fired?
+	uint64_t gps_utc_time_us = last_gps_fix_time_us + (interrupt_time_us - _last_gps_systime_us);
+
+	// (For ubx F9P and NMEA Quectel LG580P) The rising edge of the PPS pulse is aligned to the top of second GPS time base.
+	// So, remove the fraction of second and shift to the next second. The interrupt is triggered
+	// before the matching timestamp is received via a UART message, which means the last received GPS time is always
+	// behind.
+	const uint64_t corrected_utc_time_us = gps_utc_time_us - (gps_utc_time_us % USEC_PER_SEC) + USEC_PER_SEC;
+
+    struct log_PPS pkt {
+        LOG_PACKET_HEADER_INIT(LOG_PPS_MSG),
+        time_us       : interrupt_time_us,
+        utc_time_ms   : corrected_utc_time_us / 1000ULL,
+        clock_drift_percent : clock_drift_percent
+    };
+    AP::logger().WriteBlock(&pkt, sizeof(pkt));
 }
 #endif
 
